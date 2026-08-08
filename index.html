@@ -1,0 +1,3313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#4A7A96">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="My Budget">
+<link rel="manifest" href="budget-manifest.json">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:ital,wght@0,400;0,600;0,700;0,800;1,600&display=swap" rel="stylesheet">
+<title>Household Budget</title>
+<style>
+  :root {
+    --bg-main: #F4F6F8;
+    --bg-card: #FFFFFF;
+    --primary: #4A7A96;
+    --primary-hover: #3D6580;
+    --accent: #5B8A8A;
+    --accent-hover: #4A7373;
+    --secondary: #8FA8B8;
+    --text-main: #2E3A44;
+    --text-muted: #7B8894;
+    --border: #E1E7EC;
+    --shadow: 0 4px 12px rgba(46,58,68,0.06);
+    --radius: 10px;
+    --success: #5B9279;
+    --danger: #C1614F;
+    --danger-hover: #A94F3F;
+
+    /* Mobile panel padding — shared between .panel and .ledger-sticky-top's negated offset */
+    --mobile-panel-pad-y: 12px;
+    --mobile-panel-pad-x: 14px;
+
+    /* Mobile tab bar clearance — updated at runtime from the tab bar's measured height */
+    --mobile-tabbar-h: 56px;
+
+    /* Z-index scale — keep every stacking layer here so values can't collide by accident */
+    --z-content-sticky: 10;
+    --z-app-header: 50;
+    --z-tabbar: 100;
+    --z-popover-backdrop: 899;
+    --z-popover: 900;
+    --z-toast: 950;
+    --z-lightbox: 1000;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Nunito', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: var(--bg-main);
+    color: var(--text-main);
+    display: flex;
+    justify-content: center;
+    padding: 20px;
+    height: 100vh;
+    overflow-y: auto;
+  }
+
+  h1, h2, h3, .panel-header h2, .desktop-tab-btn {
+    font-family: 'Fredoka', 'Nunito', sans-serif;
+  }
+
+  .app-container {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    max-width: 1200px;
+    background: var(--bg-main);
+    height: 100%;
+    gap: 20px;
+    padding-bottom: 20px;
+  }
+
+  /* Header area */
+  .header {
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-card);
+    padding: 20px 30px;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    border-top: 6px solid var(--accent);
+    gap: 15px;
+  }
+  
+  .header-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .header h1 { font-size: 1.6rem; color: var(--text-main); }
+  
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .unallocated {
+    background: var(--primary);
+    padding: 10px 20px;
+    border-radius: 20px;
+    font-weight: bold;
+    color: #fff;
+    font-size: 1.2rem;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
+    margin-left: 10px;
+  }
+
+  /* Export Reminder Banner */
+  .export-reminder {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #FBF1EC;
+    border-bottom: 1px solid #EAD5CB;
+    padding: 10px 16px;
+    color: #8A4A36;
+    font-size: 0.85rem;
+  }
+  .export-reminder-icon { flex-shrink: 0; }
+  .export-reminder-text { flex: 1; min-width: 0; }
+  .export-reminder-btn {
+    background: var(--danger);
+    color: #fff;
+    font-size: 0.78rem;
+    font-weight: 700;
+    padding: 6px 12px;
+    border-radius: 14px;
+    border: none;
+    cursor: pointer;
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+  .export-reminder-btn:hover { opacity: 0.9; }
+  .export-reminder-dismiss {
+    background: none;
+    border: none;
+    padding: 2px;
+    color: #8A4A36;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    flex-shrink: 0;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .export-reminder-dismiss:hover { color: var(--danger); }
+
+  /* Recon Panel */
+  .recon-panel-header { margin-bottom: 10px; }
+  .recon-panel-title { font-weight: 700; font-size: 0.85rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; }
+  .recon-cards { display: flex; gap: 16px; flex-wrap: wrap; }
+  .recon-card {
+    flex: 1 1 240px;
+    background: var(--bg-main);
+    border-radius: 10px;
+    border-left: 4px solid var(--success);
+    padding: 12px 16px;
+  }
+  .recon-card-label { font-weight: 700; font-size: 0.9rem; margin-bottom: 8px; color: var(--text-main); }
+  .recon-card-body { display: flex; flex-direction: column; gap: 6px; }
+  .recon-inputs { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .recon-inputs span, .recon-inputs label { font-size: 0.9rem; color: var(--text-muted); white-space: nowrap; }
+  .recon-inputs input { width: 110px; flex: none; }
+  .recon-cleared { font-size: 0.88rem; color: var(--text-muted); }
+  .match-status {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 0.85rem;
+    align-self: flex-start;
+  }
+  .status-match { background: var(--success); color: white; }
+  .status-mismatch { background: var(--danger); color: white; }
+
+  /* Desktop Tabs */
+  .desktop-tabs {
+    display: flex;
+    gap: 4px;
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 6px;
+  }
+  .desktop-tab-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px 16px;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+  }
+  .desktop-tab-btn:hover { background: var(--bg-main); color: var(--text-main); }
+  .desktop-tab-btn.active { background: var(--primary); color: white; }
+  .desktop-tab-btn .tab-icon { display: inline-flex; align-items: center; }
+
+  /* Main Workspace */
+  .main-content {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+  }
+
+  /* Only one of .panel/.recon-panel/.reports-panel is ever visible at a time
+     (toggled via display:none <-> flex/block below), so they don't need to be
+     absolutely stacked — each just fills the remaining .main-content space
+     via flex, and provides its own scrolling for overflow content. Popovers
+     and the receipt lightbox are appended to document.body (not rendered as
+     descendants of .panel), so they aren't affected by this element's own
+     overflow/scroll handling. */
+  .panel, .recon-panel, .reports-panel {
+    flex: 1;
+    min-height: 0;
+    display: none;
+    flex-direction: column;
+    overflow: hidden;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+  }
+  .panel {
+    background: var(--bg-card);
+    padding: 16px 20px;
+  }
+  .recon-panel {
+    background: var(--bg-card);
+    padding: 20px 30px;
+    border-top: 4px solid var(--success);
+    overflow-y: auto;
+  }
+  .reports-panel {
+    padding: 20px 30px;
+    border-top: 4px solid var(--primary);
+    overflow-y: auto;
+  }
+  .panel.desktop-active { display: flex; }
+  .recon-panel.desktop-active { display: block; }
+  .reports-panel.desktop-active { display: flex; }
+
+  .panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+    border-bottom: 2px solid var(--border);
+    padding-bottom: 8px;
+  }
+
+  .panel-header h2 { font-size: 1.2rem; color: var(--accent); }
+
+  /* Inputs and Buttons */
+  .form-group {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 15px;
+  }
+  
+  input, select, button {
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 0.95rem;
+    outline: none;
+    color: var(--text-main);
+  }
+  
+  input { flex: 1; }
+  
+  button {
+    background-color: var(--primary);
+    color: #fff;
+    font-weight: bold;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.2s;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  
+  button:hover { background-color: var(--primary-hover); }
+
+  .secondary-btn {
+    background-color: var(--border);
+    color: var(--text-main);
+    font-size: 0.85rem;
+    padding: 8px 12px;
+  }
+  .secondary-btn:hover { background-color: #D5DEE5; }
+
+  .delete-btn {
+    background-color: transparent;
+    color: var(--danger);
+    padding: 4px 8px;
+    font-size: 0.8rem;
+    border: 1px solid var(--danger);
+  }
+  .delete-btn:hover {
+    background-color: var(--danger);
+    color: white;
+  }
+  
+  /* Internal Scrolling */
+  .scroll-area {
+    flex: 1;
+    overflow-y: auto;
+    padding-right: 5px;
+  }
+  /* keep in sync with MOBILE_BREAKPOINT in <script> */
+  @media (max-width: 480px) {
+    .scroll-area { flex: none; overflow-y: visible; padding-right: 0; }
+  }
+  .scroll-area::-webkit-scrollbar { width: 6px; }
+  .scroll-area::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+  /* Envelopes Column */
+  .envelope-list { display: flex; flex-direction: column; gap: 6px; }
+  .envelope-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--bg-card);
+    padding: 10px 14px;
+    border-radius: 10px;
+    border-left: 4px solid var(--primary);
+    box-shadow: var(--shadow);
+  }
+  
+  .env-info { display: flex; flex-direction: column; gap: 4px; }
+  .envelope-name { font-weight: 600; font-size: 0.95rem; }
+  .envelope-goal { font-size: 0.75rem; color: var(--text-muted); }
+  
+  .envelope-actions { display: flex; gap: 8px; align-items: center; }
+  .env-balance { font-size: 1rem; min-width: 65px; text-align: right; }
+  
+  .fund-input-row { display: flex; gap: 6px; align-items: center; width: 100%; margin-top: 6px; }
+  .fund-input-row input { flex: 1; padding: 6px 8px; font-size: 0.85rem; min-width: 0; }
+  .fund-input-row .confirm-btn { background: var(--success); font-size: 0.8rem; padding: 6px 10px; white-space: nowrap; }
+  .fund-input-row .confirm-btn:hover { background: #4A7373; }
+  .fund-input-row .cancel-btn { background: transparent; color: var(--text-muted); border: 1px solid var(--border); font-size: 0.8rem; padding: 6px 8px; }
+  .fund-input-row .cancel-btn:hover { background: var(--border); }
+  .fund-btn { background: var(--accent); font-size: 0.75rem; padding: 5px 9px; white-space: nowrap; }
+  .fund-btn:hover { background: #3D6580; }
+  .quick-fund-btn { background: var(--success); font-size: 0.75rem; padding: 5px 9px; white-space: nowrap; }
+  .quick-fund-btn:hover { background: #4A7373; }
+
+  /* Ledger Column */
+  .ledger-table { width: 100%; border-collapse: collapse; }
+  .ledger-table th, .ledger-table td {
+    padding: 12px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+  }
+  .ledger-table th { color: var(--text-muted); font-size: 0.85rem; font-weight: normal; }
+  .amount-positive { color: var(--success); font-weight: bold; }
+  .amount-negative { color: var(--danger); font-weight: bold; }
+  
+  .action-cell { width: 60px; text-align: center; }
+  .cleared-checkbox {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+    accent-color: var(--primary);
+    flex: 0 0 auto;
+  }
+  .cleared-checkbox:disabled {
+    cursor: default;
+    accent-color: var(--border);
+    opacity: 0.55;
+  }
+
+  .empty-state {
+    text-align: center;
+    padding: 30px 10px;
+    color: var(--text-muted);
+    font-style: italic;
+  }
+
+  .date-short { display: none; }
+  .amt-short { display: none; }
+  .col-running { width: 80px; text-align: right; white-space: nowrap; font-size: 0.82rem; color: var(--text-muted); }
+  .col-running.bal-neg { color: var(--danger); font-weight: 600; }
+
+  /* Edit row */
+  .edit-row td { padding: 8px 4px; background: var(--bg-main); }
+  .edit-row-inner { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 8px; background: var(--bg-main); border-radius: 8px; border: 1px solid var(--primary); }
+  .edit-row-inner input, .edit-row-inner select { font-size: 0.85rem; padding: 6px 8px; flex: 1 1 auto; min-width: 80px; }
+  .edit-row-inner input[type="date"] { min-width: 120px; max-width: 140px; }
+  .edit-row-inner input[type="number"] { max-width: 100px; }
+  .edit-save-btn { background: var(--success); color: white; font-size: 0.82rem; padding: 6px 12px; white-space: nowrap; flex-shrink: 0; }
+  .edit-save-btn:hover { background: #4A7373; }
+  .edit-cancel-btn { background: transparent; color: var(--text-muted); border: 1px solid var(--border); font-size: 0.82rem; padding: 6px 10px; flex-shrink: 0; }
+  .edit-cancel-btn:hover { background: var(--border); color: var(--text-main); }
+  .edit-btn { background: transparent; color: var(--primary); border: 1px solid var(--primary); padding: 4px 8px; font-size: 0.8rem; }
+  .edit-btn:hover { background: var(--primary); color: white; }
+
+  /* Ledger Entry Form */
+  #add-transaction-form { display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px; }
+  .txn-form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr 1fr;
+    gap: 10px;
+  }
+  .txn-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .txn-field-wide { grid-column: span 2; }
+
+  .split-toggle-label {
+    display: flex; align-items: center; gap: 8px; font-size: 0.9rem; color: var(--text-main);
+    cursor: pointer; user-select: none;
+  }
+  .split-toggle-label input[type="checkbox"] { width: 17px; height: 17px; cursor: pointer; accent-color: var(--primary); flex: 0 0 auto; }
+  .split-row-item { display: flex; gap: 6px; align-items: center; margin-bottom: 6px; }
+  .split-row-item select { flex: 2; min-width: 0; }
+  .split-row-item input[type="number"] { flex: 1; min-width: 0; }
+  .split-remove-btn {
+    background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 4px;
+    display: inline-flex; align-items: center; flex-shrink: 0; -webkit-tap-highlight-color: transparent;
+  }
+  .split-remove-btn:hover { color: var(--danger); }
+  .split-add-row-btn {
+    background: none; border: 1px dashed var(--border); color: var(--primary); font-weight: 600;
+    font-size: 0.85rem; padding: 7px 10px; border-radius: 8px; cursor: pointer; width: 100%;
+    -webkit-appearance: none; appearance: none;
+  }
+  .split-add-row-btn:hover { background: var(--bg-main); }
+  .split-total-line { font-size: 0.83rem; color: var(--text-muted); margin-top: 8px; text-align: right; }
+  .split-total-line.split-mismatch { color: var(--danger); font-weight: 700; }
+
+  .txn-label { font-size: 0.75rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+  .txn-field input, .txn-field select { width: 100%; min-width: 0; box-sizing: border-box; }
+  .txn-field input[type="date"] { -webkit-appearance: none; appearance: none; }
+  .txn-field input:read-only { background: var(--bg-main); color: var(--text-muted); }
+  .txn-submit-btn { width: 100%; padding: 10px; font-size: 1rem; font-weight: bold; background: var(--primary); color: white; border: none; border-radius: 8px; cursor: pointer; transition: background 0.2s; }
+
+  /* Note + Receipt */
+  .txn-field textarea {
+    width: 100%; min-width: 0; box-sizing: border-box; resize: vertical; min-height: 44px;
+    font-family: inherit; font-size: 0.95rem; padding: 8px 10px;
+    border: 1px solid var(--border); border-radius: 8px; background: var(--bg-card); color: var(--text-main);
+  }
+  .receipt-upload-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .receipt-upload-btn {
+    display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px;
+    background: var(--bg-card); color: var(--text-main); border: 1px dashed var(--border);
+    border-radius: 8px; font-size: 0.85rem; font-weight: 600; cursor: pointer;
+  }
+  .receipt-upload-btn:hover { border-color: var(--primary); color: var(--primary); }
+  .receipt-thumb-wrap { position: relative; display: inline-flex; }
+  .receipt-thumb { width: 44px; height: 44px; object-fit: cover; border-radius: 6px; border: 1px solid var(--border); cursor: pointer; }
+  .receipt-remove-btn {
+    position: absolute; top: -6px; right: -6px; width: 18px; height: 18px; border-radius: 50%;
+    background: var(--danger); color: #fff; font-size: 0.7rem; line-height: 18px; text-align: center;
+    padding: 0; border: none; cursor: pointer;
+  }
+  .receipt-remove-btn:hover { background: var(--danger-hover); }
+  .receipt-hint { font-size: 0.75rem; color: var(--text-muted); }
+
+  /* Ledger row: note/receipt indicator */
+  .row-detail-btn {
+    background: none; border: none; padding: 0 4px; color: var(--text-muted); cursor: pointer; vertical-align: middle;
+    display: inline-flex; align-items: center; gap: 2px; flex-shrink: 0;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .row-detail-btn:focus { outline: none; }
+  .row-detail-btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+  .row-detail-btn:hover { color: var(--primary); }
+  .payee-cell-inner {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    min-width: 0;
+  }
+  .payee-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+  }
+  .detail-popover {
+    position: fixed;
+    z-index: var(--z-popover);
+    max-width: 260px;
+    min-width: 180px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    box-shadow: var(--shadow), 0 8px 20px rgba(0,0,0,0.12);
+    padding: 12px 14px;
+  }
+  .detail-popover-note { font-size: 0.85rem; color: var(--text-main); white-space: pre-wrap; margin-bottom: 8px; }
+  .detail-popover-split { margin-bottom: 8px; }
+  .detail-split-row { display: flex; justify-content: space-between; gap: 12px; font-size: 0.85rem; padding: 3px 0; }
+  .detail-split-row span:first-child { color: var(--text-main); font-weight: 600; }
+  .detail-split-row span:last-child { color: var(--danger); font-weight: 700; }
+  .detail-popover-note:last-child { margin-bottom: 0; }
+  .detail-receipt-thumb { width: 64px; height: 64px; object-fit: cover; border-radius: 6px; border: 1px solid var(--border); cursor: pointer; }
+  .detail-receipt-loading { font-size: 0.8rem; color: var(--text-muted); font-style: italic; }
+  .detail-popover-backdrop { position: fixed; inset: 0; z-index: var(--z-popover-backdrop); background: transparent; }
+
+  /* Receipt lightbox */
+  .lightbox-overlay {
+    position: fixed; inset: 0; background: rgba(20,26,32,0.75); z-index: var(--z-lightbox);
+    display: flex; align-items: center; justify-content: center; padding: 24px;
+  }
+  .lightbox-img { max-width: 100%; max-height: 90vh; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.4); }
+  .lightbox-close {
+    position: absolute; top: 18px; right: 22px; background: rgba(255,255,255,0.15); color: #fff;
+    border: none; border-radius: 50%; width: 36px; height: 36px; font-size: 1.1rem; cursor: pointer;
+  }
+  .lightbox-close:hover { background: rgba(255,255,255,0.3); }
+  .txn-submit-btn:hover { background: var(--primary-hover); }
+
+
+  /* Filter Bar */
+  .ledger-search-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 8px 12px;
+    margin-bottom: 8px;
+  }
+  .ledger-search-icon { color: var(--text-muted); flex-shrink: 0; }
+  .ledger-search-row input {
+    flex: 1;
+    border: none;
+    padding: 0;
+    font-size: 0.9rem;
+    min-width: 0;
+  }
+  .ledger-search-row input:focus { outline: none; }
+  .ledger-search-clear-btn {
+    background: none; border: none; padding: 2px; color: var(--text-muted); cursor: pointer;
+    display: inline-flex; align-items: center; flex-shrink: 0; -webkit-tap-highlight-color: transparent;
+  }
+  .ledger-search-clear-btn:hover { color: var(--danger); }
+
+  .ledger-filters {
+    display: flex;
+    gap: 5px;
+    flex-wrap: nowrap;
+    margin-bottom: 8px;
+    align-items: center;
+  }
+  .ledger-filters select {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 5px 6px;
+    font-size: 0.8rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg-card);
+    color: var(--text-main);
+    cursor: pointer;
+  }
+  .ledger-filters select:focus { outline: 2px solid var(--primary); }
+  #clear-filters { font-size: 0.8rem; padding: 5px 8px; flex-shrink: 0; }
+
+  /* Account badge */
+  .account-badge {
+    display: inline-block;
+    font-size: 0.65rem;
+    font-weight: bold;
+    padding: 1px 5px;
+    border-radius: 6px;
+    margin-left: 5px;
+    vertical-align: middle;
+    background: var(--accent);
+    color: white;
+    flex-shrink: 0;
+    letter-spacing: 0.03em;
+  }
+
+  /* Save flash */
+  .save-flash {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: var(--success);
+    color: white;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: bold;
+    opacity: 0;
+    transform: translateY(8px);
+    transition: opacity 0.2s, transform 0.2s;
+    pointer-events: none;
+    z-index: var(--z-toast);
+  }
+  .save-flash.show { opacity: 1; transform: translateY(0); }
+
+  /* ── Reports ── */
+  /* reports-panel base styles in unified block above */
+  .reports-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 2px solid var(--border);
+    padding-bottom: 10px;
+    margin-bottom: 4px;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .reports-header h2 { font-size: 1.2rem; color: var(--accent); margin: 0; }
+  .reports-controls { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .reports-controls select, .reports-controls button {
+    font-size: 0.85rem; padding: 6px 10px;
+  }
+  .reports-body {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+    align-items: start;
+  }
+  .report-card-wide { grid-column: 1 / -1; }
+  .health-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 0.88rem; }
+  .health-row:last-child { border-bottom: none; }
+  .health-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .health-name { flex: 1; font-weight: 600; }
+  .health-status-label { font-weight: 700; font-size: 0.75rem; }
+  .health-balance { min-width: 70px; text-align: right; }
+  .health-goal { min-width: 70px; text-align: right; color: var(--text-muted); font-size: 0.8rem; }
+  .savings-rate-display { text-align: center; padding: 16px 0; }
+  .savings-rate-pct { font-size: 2.8rem; font-weight: 800; }
+  .savings-rate-label { font-size: 0.85rem; color: var(--text-muted); margin-top: 4px; }
+  .savings-rate-sub { font-size: 0.82rem; color: var(--text-muted); margin-top: 8px; }
+  .split-row { display: flex; gap: 12px; margin-bottom: 10px; }
+  .split-card { flex: 1; background: var(--bg-card); border-radius: 8px; padding: 10px; text-align: center; }
+  .split-card .split-label { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+  .split-card .split-amount { font-size: 1.2rem; font-weight: 700; margin: 4px 0; }
+  .split-card .split-pct { font-size: 0.8rem; color: var(--text-muted); }
+  .uncleared-group { margin-bottom: 14px; }
+  .uncleared-group-title { font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 6px; }
+  .uncleared-row { display: flex; align-items: center; gap: 4px; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 0.88rem; }
+  .uncleared-row:last-child { border-bottom: none; }
+  .uncleared-date { color: var(--text-muted); min-width: 52px; font-size: 0.8rem; }
+  .uncleared-payee { flex: 1; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin: 0 10px; }
+  .uncleared-amount { font-weight: 700; min-width: 80px; text-align: right; }
+
+  .recon-clear-section { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
+  .recon-clear-title { font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 6px; }
+  .recon-empty-msg { font-size: 0.85rem; color: var(--text-muted); font-style: italic; padding: 4px 0; }
+  .recon-cleared-toggle {
+    display: inline-flex; align-items: center; gap: 4px; background: none; border: none; padding: 0;
+    color: var(--text-muted); font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
+    cursor: pointer; -webkit-tap-highlight-color: transparent;
+    -webkit-appearance: none; appearance: none;
+  }
+  .recon-cleared-toggle:hover { color: var(--primary); }
+  .recon-cleared-toggle:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+  .recon-cleared-toggle.open svg { transform: rotate(90deg); }
+  .recon-cleared-toggle svg { transition: transform 0.15s ease; flex-shrink: 0; }
+  .recon-cleared-list { margin-top: 8px; }
+
+  .report-card {
+    background: var(--bg-main);
+    border-radius: 10px;
+    border-left: 4px solid var(--primary);
+    padding: 16px 20px;
+    min-width: 0;
+  }
+  .report-card h3 {
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    font-weight: 600;
+    margin-bottom: 14px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 8px;
+  }
+  .report-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 8px;
+    margin-bottom: 14px;
+  }
+  .report-card-header h3 { border-bottom: none; padding-bottom: 0; margin-bottom: 0; }
+  .report-card-header select {
+    font-size: 0.8rem;
+    padding: 5px 8px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    color: var(--text-main);
+    font-weight: 600;
+  }
+  /* Bar chart */
+  .bar-chart { display: flex; flex-direction: column; gap: 8px; }
+  .bar-row { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; }
+  .bar-label { width: 110px; min-width: 110px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-main); }
+  .bar-track { flex: 1; background: var(--border); border-radius: 4px; height: 14px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 4px; background: var(--primary); transition: width 0.4s ease; }
+  .bar-fill.bar-accent { background: var(--accent); }
+  .bar-fill.bar-danger { background: var(--danger); }
+  .bar-amount { min-width: 64px; text-align: right; font-weight: 600; color: var(--text-main); }
+  /* Month table */
+  .month-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+  .month-table th { color: var(--text-muted); font-weight: normal; padding: 4px 8px; text-align: right; border-bottom: 1px solid var(--border); }
+  .month-table th:first-child { text-align: left; }
+  .month-table td { padding: 7px 8px; text-align: right; border-bottom: 1px solid var(--border); }
+  .month-table td:first-child { text-align: left; font-weight: 600; }
+  .month-table .net-pos { color: var(--success); font-weight: bold; }
+  .month-table .net-neg { color: var(--danger); font-weight: bold; }
+  .report-empty { color: var(--text-muted); font-style: italic; font-size: 0.9rem; padding: 20px 0; text-align: center; }
+  .csv-btn { background: var(--primary); color: white; font-size: 0.85rem; padding: 7px 14px; font-weight: bold; border: none; }
+  .csv-btn:hover { background: var(--primary-hover); }
+
+  /* ── Tablet ── */
+  @media (max-width: 900px) {
+    body { padding: 12px; }
+    .header-top { flex-direction: column; gap: 12px; align-items: flex-start; }
+    .recon-cards { flex-direction: column; }
+    .header-actions { width: 100%; justify-content: flex-start; flex-wrap: wrap; }
+    input[type="number"], input[type="date"] { max-width: 100%; }
+  }
+
+  /* ── Mobile Tab Bar ── */
+  .mobile-tabs {
+    display: none;
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: var(--bg-card);
+    border-top: 2px solid var(--border);
+    z-index: var(--z-tabbar);
+    justify-content: space-around;
+    padding: 6px 0 env(safe-area-inset-bottom, 8px);
+    box-shadow: 0 -2px 10px rgba(0,0,0,0.12);
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
+  }
+  .mobile-tab-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    background: none;
+    border: none;
+    padding: 4px 10px;
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    cursor: pointer;
+    border-radius: 8px;
+    transition: color 0.15s;
+    min-width: 56px;
+    -webkit-tap-highlight-color: transparent;
+    outline: none;
+  }
+  .mobile-tab-btn:focus { outline: none; }
+  .mobile-tab-btn .tab-icon { display: flex; align-items: center; justify-content: center; }
+  .mobile-tab-btn.active { color: var(--primary); font-weight: 700; }
+
+  /* ── Mobile ── */
+  /* keep in sync with MOBILE_BREAKPOINT in <script> */
+  @media (max-width: 480px) {
+    body { padding: 0; background: var(--bg-main); }
+    .app-container { gap: 0; padding-bottom: calc(var(--mobile-tabbar-h) + env(safe-area-inset-bottom, 8px)); }
+
+    /* Header */
+    .header {
+      padding: 12px 14px 10px;
+      border-radius: 0;
+      border-top: none;
+      position: sticky;
+      top: 0;
+      z-index: var(--z-app-header);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+    .header h1 { font-size: 1.1rem; }
+    .header-top { gap: 8px; }
+    .header-actions { gap: 6px; flex-wrap: wrap; }
+    .unallocated { font-size: 0.95rem; padding: 7px 12px; margin-left: 0; }
+    .secondary-btn { font-size: 0.75rem; padding: 6px 9px; }
+
+    .desktop-tabs { display: none; }
+    /* Reset all panels to hidden on mobile — mobile-active shows them */
+    .panel, .recon-panel, .reports-panel { display: none; box-shadow: none; border-radius: 0; }
+    .panel.desktop-active, .recon-panel.desktop-active, .reports-panel.desktop-active { display: none; }
+    /* Recon is now a full tab on mobile */
+    .match-status { font-size: 0.75rem; padding: 3px 8px; }
+
+    /* Tab-based sections */
+    .mobile-tabs { display: flex; }
+    .main-content { gap: 0; }
+    .panel {
+      display: none;
+      padding: var(--mobile-panel-pad-y) var(--mobile-panel-pad-x);
+      border-radius: 0;
+      box-shadow: none;
+      flex: 1;
+      min-height: 0;
+      flex-direction: column;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    .panel.mobile-active { display: flex; }
+    .reports-panel {
+      display: none;
+      padding: 14px;
+      border-radius: 0;
+      box-shadow: none;
+      border-top: none;
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    .reports-panel.mobile-active { display: flex; }
+    .recon-panel {
+      display: none;
+      padding: 14px;
+      border-radius: 0;
+      box-shadow: none;
+      border-top: 4px solid var(--success);
+      flex-direction: column;
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    .recon-panel.mobile-active { display: flex; }
+    .recon-cards { flex-direction: column; gap: 12px; }
+    .recon-card { flex: none; }
+    .recon-inputs input { width: 100%; flex: 1; }
+
+    /* Panel headers */
+    .panel-header h2 { font-size: 0.95rem; }
+    .panel-header { margin-bottom: 6px; padding-bottom: 6px; }
+    .panel.mobile-active .panel-header { padding-top: 4px; }
+    /* Sticky wrapper keeps ledger header + filters pinned together as one unit.
+       .panel is its own scroll container (overflow-y:auto), so sticky is relative
+       to the panel itself, not the page — top:0 is correct here. */
+    .panel.mobile-active .ledger-sticky-top {
+      position: sticky;
+      top: calc(-1 * var(--mobile-panel-pad-y));
+      background: var(--bg-card);
+      z-index: var(--z-content-sticky);
+      margin: calc(-1 * var(--mobile-panel-pad-y)) calc(-1 * var(--mobile-panel-pad-x)) 0;
+      padding: var(--mobile-panel-pad-y) var(--mobile-panel-pad-x) 6px;
+    }
+    /* While the add-transaction form is open, release sticky positioning so the
+       full form is reachable by scrolling instead of being clipped to panel height */
+    .panel.mobile-active .ledger-sticky-top.form-expanded {
+      position: static;
+      margin: calc(-1 * var(--mobile-panel-pad-y)) calc(-1 * var(--mobile-panel-pad-x)) 0;
+    }
+
+    /* Envelope form — compact on mobile */
+    .form-group { flex-direction: row; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+    .form-group input { flex: 1 1 120px; min-width: 0; }
+    .form-group input[type="number"] { flex: 0 0 90px; }
+    .form-group button { flex: 0 0 auto; padding: 8px 16px; }
+
+    /* Envelope items — two row mobile layout */
+    .envelope-list { gap: 5px; }
+    .envelope-item {
+      flex-direction: column;
+      align-items: stretch;
+      padding: 8px 10px;
+      gap: 6px;
+    }
+    .env-info { display: flex; flex-direction: row; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: nowrap; }
+    .envelope-name { font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; }
+    .envelope-goal { font-size: 0.72rem; white-space: nowrap; flex-shrink: 0; }
+    .envelope-actions { display: flex; align-items: center; gap: 5px; width: 100%; }
+    .env-balance { font-size: 0.88rem; font-weight: 700; min-width: 60px; }
+    .fund-btn { flex: 1; font-size: 0.75rem; padding: 6px 4px; text-align: center; }
+    .quick-fund-btn { flex: 1; font-size: 0.75rem; padding: 6px 4px; text-align: center; }
+    .envelope-actions .edit-btn { padding: 6px 8px; font-size: 0.75rem; flex-shrink: 0; }
+    .envelope-actions .delete-btn { padding: 6px 8px; font-size: 0.75rem; flex-shrink: 0; }
+
+    /* Transaction form — single column on mobile */
+    .txn-form-grid { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+    .txn-field-wide { grid-column: span 1; }
+    #add-transaction-form input, #add-transaction-form select { font-size: 1rem; width: 100%; box-sizing: border-box; max-width: 100%; }
+    input[type="date"] { width: 100%; box-sizing: border-box; max-width: 100%; min-width: 0; }
+    #txn-form-wrapper { margin-bottom: 10px; }
+
+    /* Filter bar — 2 column grid on mobile */
+    .ledger-filters { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+    .ledger-filters select { font-size: 0.8rem; width: 100%; }
+    #clear-filters { grid-column: span 2; font-size: 0.8rem; padding: 5px; }
+
+    /* Ledger table */
+    .ledger-table { table-layout: fixed; width: 100%; }
+    .ledger-table th, .ledger-table td { padding: 9px 3px; font-size: 0.82rem; overflow: hidden; }
+    .ledger-table .col-category { display: none; }
+    .ledger-table .col-running { display: none; }
+    .ledger-table .col-payee { overflow: hidden; }
+    .ledger-table .col-date { white-space: nowrap; width: 44px; }
+    .ledger-table .col-amount { width: 76px; text-align: right; white-space: nowrap; }
+    .date-full { display: none; }
+    .date-short { display: inline; }
+    .account-badge { display: none; }
+    .amt-full { display: none; }
+    .amt-short { display: inline; }
+    .action-cell { width: 52px; }
+    .cleared-checkbox { width: 20px; height: 20px; }
+    .delete-btn, .edit-btn { padding: 5px 6px; font-size: 0.78rem; }
+    .edit-row-inner { flex-wrap: wrap; gap: 6px; }
+    .edit-row-inner input, .edit-row-inner select { min-width: 0; font-size: 0.85rem; flex: 1 1 40%; }
+    .edit-save-btn, .edit-cancel-btn { flex: 1 1 auto; }
+
+    /* Reports */
+    .reports-body { grid-template-columns: 1fr; gap: 10px; }
+    .report-card-wide { grid-column: 1; }
+
+  .report-card { width: 100%; padding: 12px; }
+    .reports-header { flex-direction: column; gap: 8px; }
+    .reports-controls { width: 100%; display: flex; gap: 6px; }
+    .reports-controls select { flex: 1; }
+    .reports-controls button { flex-shrink: 0; }
+    .bar-label { width: 80px; min-width: 80px; }
+    .month-table th, .month-table td { padding: 6px 4px; font-size: 0.8rem; }
+  }
+</style>
+</head>
+<body>
+
+<div class="app-container">
+  <div class="header">
+    <div class="header-top">
+      <h1>Household Budget</h1>
+      <div class="header-actions">
+        <button id="export-btn" class="secondary-btn" title="Download backup file">Export</button>
+        <button id="import-btn" class="secondary-btn" title="Load backup file">Import</button>
+        <input type="file" id="import-file" accept=".json" style="display: none;">
+        <button id="reset-btn" class="secondary-btn" title="Clear all data">Reset Data</button>
+        <div class="unallocated">Left to Assign: $<span id="unallocated-amount">0.00</span></div>
+      </div>
+    </div>
+    
+  </div>
+
+  <div id="export-reminder-banner" class="export-reminder" style="display:none;">
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="export-reminder-icon"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.29 3.86l-8.48 14.7A1.5 1.5 0 0 0 3.07 21h17.86a1.5 1.5 0 0 0 1.26-2.44l-8.48-14.7a1.5 1.5 0 0 0-2.52 0z"/></svg>
+    <span id="export-reminder-text" class="export-reminder-text"></span>
+    <button type="button" class="export-reminder-btn" onclick="document.getElementById('export-btn').click()">Export Now</button>
+    <button type="button" class="export-reminder-dismiss" onclick="dismissExportReminder()" title="Dismiss" aria-label="Dismiss export reminder">
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+  </div>
+
+  <!-- Desktop Tab Navigation -->
+  <nav class="desktop-tabs" id="desktop-tabs">
+    <button class="desktop-tab-btn active" data-tab="envelopes">
+      <span class="tab-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg></span> Envelopes
+    </button>
+    <button class="desktop-tab-btn" data-tab="ledger">
+      <span class="tab-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h13a3 3 0 0 1 3 3v13H7a3 3 0 0 1-3-3V4z"/><line x1="9" y1="9" x2="15" y2="9"/><line x1="9" y1="13" x2="15" y2="13"/></svg></span> Ledger
+    </button>
+    <button class="desktop-tab-btn" data-tab="recon">
+      <span class="tab-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V10l7-6 7 6v11"/><line x1="10" y1="21" x2="10" y2="14"/><line x1="14" y1="21" x2="14" y2="14"/></svg></span> Reconcile
+    </button>
+    <button class="desktop-tab-btn" data-tab="reports">
+      <span class="tab-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="20" x2="20" y2="20"/><rect x="6" y="12" width="3" height="8"/><rect x="13" y="7" width="3" height="13"/></svg></span> Reports
+    </button>
+  </nav>
+
+  <div class="main-content">
+    <!-- Envelopes -->
+    <div class="panel mobile-active desktop-active" id="panel-envelopes">
+      <div class="panel-header">
+        <h2>Envelopes & Paycheck Goals</h2>
+        <button type="button" id="toggle-transfer-btn" class="secondary-btn" style="font-size:0.85rem; padding:6px 12px;">⇄ Move Money</button>
+      </div>
+      <div id="envelope-transfer-wrapper" style="display:none; margin-bottom:12px;">
+        <form id="envelope-transfer-form">
+        <div class="txn-form-grid">
+          <div class="txn-field">
+            <label class="txn-label" for="transfer-from">From Envelope</label>
+            <select id="transfer-from" required>
+              <option value="" disabled selected>Select Envelope</option>
+            </select>
+          </div>
+          <div class="txn-field">
+            <label class="txn-label" for="transfer-to">To Envelope</label>
+            <select id="transfer-to" required>
+              <option value="" disabled selected>Select Envelope</option>
+            </select>
+          </div>
+          <div class="txn-field">
+            <label class="txn-label" for="transfer-amount">Amount</label>
+            <input type="number" id="transfer-amount" placeholder="0.00" step="0.01" min="0.01" required>
+          </div>
+          <div class="txn-field txn-field-wide">
+            <label class="txn-label" for="transfer-note">Note (optional)</label>
+            <input type="text" id="transfer-note" placeholder="e.g. Covering overspend" autocomplete="off">
+          </div>
+        </div>
+        <div id="transfer-error" style="display:none; color:var(--danger); font-size:0.85rem; margin:8px 0;"></div>
+        <button type="submit" class="txn-submit-btn">Transfer</button>
+        </form>
+      </div>
+      <form id="add-envelope-form" class="form-group" style="margin-bottom: 10px;">
+        <input type="text" id="env-name" placeholder="Category (e.g., Groceries)" aria-label="Envelope category name" required autocomplete="off">
+        <input type="number" id="env-goal" placeholder="Per Paycheck $" aria-label="Per paycheck goal amount" step="0.01" min="0" autocomplete="off">
+        <button type="submit">Add</button>
+      </form>
+      <div class="scroll-area">
+        <div class="envelope-list" id="envelope-list">
+            <!-- Populated via JS -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Ledger -->
+    <div class="panel" id="panel-ledger">
+      <div class="ledger-sticky-top">
+        <div class="panel-header">
+          <h2>Transaction History</h2>
+          <button type="button" id="toggle-form-btn" class="secondary-btn" style="font-size:0.85rem; padding:6px 12px;">+ Add Transaction</button>
+        </div>
+        <div id="txn-form-wrapper" style="display:none; margin-bottom:12px;">
+        <form id="add-transaction-form">
+        <div class="txn-form-grid">
+          <div class="txn-field">
+            <label class="txn-label" for="txn-date">Date</label>
+            <input type="date" id="txn-date" required>
+          </div>
+          <div class="txn-field">
+            <label class="txn-label" for="txn-type">Type</label>
+            <select id="txn-type" required>
+              <option value="expense">Expense</option>
+              <option value="income">Income</option>
+              <option value="cc-payment">CC Payment</option>
+              <option value="cc-cashback">CC Cash Back</option>
+              <option value="transfer">Transfer to Savings</option>
+            </select>
+          </div>
+          <div class="txn-field">
+            <label class="txn-label" for="txn-account">Account</label>
+            <select id="txn-account">
+              <option value="checking">Checking</option>
+              <option value="cc">Credit Card</option>
+            </select>
+          </div>
+          <div class="txn-field">
+            <label class="txn-label" for="txn-amount">Amount</label>
+            <input type="number" id="txn-amount" placeholder="0.00" step="0.01" min="0.01" required>
+          </div>
+          <div class="txn-field txn-field-wide">
+            <label class="txn-label" for="txn-payee">Payee / Source</label>
+            <input type="text" id="txn-payee" list="payee-list" placeholder="e.g. Safeway, Skagit Farmers" required autocomplete="off">
+            <datalist id="payee-list"></datalist>
+          </div>
+          <div class="txn-field txn-field-wide">
+            <label class="txn-label" for="txn-envelope">Envelope</label>
+            <select id="txn-envelope" required>
+              <option value="" disabled selected>Select Envelope</option>
+            </select>
+          </div>
+          <div class="txn-field txn-field-wide" id="txn-split-toggle-wrap" style="display:none;">
+            <label class="split-toggle-label">
+              <input type="checkbox" id="txn-split-toggle">
+              Split across multiple envelopes
+            </label>
+          </div>
+          <div class="txn-field txn-field-wide" id="txn-split-container" style="display:none;">
+            <label class="txn-label" id="txn-split-rows-label">Split Envelopes</label>
+            <div id="txn-split-rows" role="group" aria-labelledby="txn-split-rows-label"></div>
+            <button type="button" class="split-add-row-btn" onclick="addSplitRow()">+ Add Envelope</button>
+            <div id="txn-split-total" class="split-total-line"></div>
+          </div>
+          <div class="txn-field txn-field-wide">
+            <label class="txn-label" for="txn-note">Note (optional)</label>
+            <textarea id="txn-note" placeholder="Any extra detail about this transaction..."></textarea>
+          </div>
+          <div class="txn-field txn-field-wide">
+            <label class="txn-label" for="txn-receipt-input">Receipt (optional)</label>
+            <div class="receipt-upload-row">
+              <label class="receipt-upload-btn" for="txn-receipt-input"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px; margin-right:3px;"><path d="M21.44 11.05l-9.19 9.19a5.5 5.5 0 0 1-7.78-7.78l9.19-9.19a3.5 3.5 0 0 1 4.95 4.95l-9.2 9.19a1.5 1.5 0 0 1-2.12-2.12l8.49-8.48"/></svg>Add Photo</label>
+              <input type="file" id="txn-receipt-input" accept="image/*" style="display:none;">
+              <div id="txn-receipt-preview"></div>
+            </div>
+          </div>
+        </div>
+        <button type="submit" class="txn-submit-btn">Record Transaction</button>
+      </form>
+      </div>
+
+      <div class="ledger-search-row">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="ledger-search-icon"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" id="ledger-search" placeholder="Search payee or note…" aria-label="Search payee or note" autocomplete="off">
+        <button type="button" id="ledger-search-clear" class="ledger-search-clear-btn" style="display:none;" title="Clear search" aria-label="Clear search">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="ledger-filters">
+        <select id="filter-month" aria-label="Filter by month">
+          <option value="">All Time</option>
+        </select>
+        <select id="filter-type" aria-label="Filter by transaction type">
+          <option value="">All Types</option>
+          <option value="expense">Expenses</option>
+          <option value="split">Split</option>
+          <option value="income">Income</option>
+          <option value="funding">Funding</option>
+          <option value="cc-payment">CC Payment</option>
+          <option value="cc-cashback">CC Cash Back</option>
+          <option value="transfer">Transfer to Savings</option>
+          <option value="envelope-transfer">Envelope Transfer</option>
+        </select>
+        <select id="filter-account" aria-label="Filter by account">
+          <option value="">All Accounts</option>
+          <option value="checking">Checking</option>
+          <option value="cc">Credit Card</option>
+        </select>
+        <select id="filter-envelope" aria-label="Filter by envelope">
+          <option value="">All Envelopes</option>
+        </select>
+        <select id="sort-by" aria-label="Sort transactions">
+          <option value="date-desc">Date ↓</option>
+          <option value="date-asc">Date ↑</option>
+          <option value="amount-desc">Amount ↓</option>
+          <option value="amount-asc">Amount ↑</option>
+        </select>
+        <button id="clear-filters" class="secondary-btn" style="white-space:nowrap;">✕ Clear</button>
+      </div>
+      </div><!-- /.ledger-sticky-top -->
+      <div class="scroll-area">
+        <table class="ledger-table">
+          <thead>
+            <tr>
+              <th class="col-date">Date</th>
+              <th class="col-payee">Payee</th>
+              <th class="col-category">Category</th>
+              <th class="col-amount">Amount</th>
+              <th class="col-running">Chk Bal</th>
+              <th class="action-cell"></th>
+            </tr>
+          </thead>
+          <tbody id="ledger-body">
+              <!-- Populated via JS -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+  
+
+    <!-- Recon Bar — desktop inline, mobile full tab -->
+  <div id="panel-recon" class="recon-panel">
+    <div class="recon-panel-header">
+      <span class="recon-panel-title">Reconciliation</span>
+    </div>
+    <div class="recon-cards">
+      <div class="recon-card">
+        <div class="recon-card-label">Checking Account</div>
+        <div class="recon-card-body">
+          <div class="recon-inputs">
+            <label for="actual-bank-balance">Actual Balance $</label>
+            <input type="number" id="actual-bank-balance" step="0.01" value="0.00">
+          </div>
+          <div class="recon-cleared">Cleared Ledger: $<span id="cleared-balance">0.00</span></div>
+          <div id="recon-status" class="match-status"></div>
+        </div>
+        <div class="recon-clear-section">
+          <div class="recon-clear-title">Needs Clearing</div>
+          <div id="uncleared-list-checking"></div>
+        </div>
+        <div class="recon-clear-section">
+          <div class="recon-cleared-toggle" id="cleared-toggle-checking" role="button" tabindex="0" onclick="toggleClearedSection('checking')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleClearedSection('checking');}">
+            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+            Recently Cleared
+          </div>
+          <div id="cleared-list-checking" class="recon-cleared-list" style="display:none;"></div>
+        </div>
+      </div>
+      <div class="recon-card">
+        <div class="recon-card-label">Credit Card</div>
+        <div class="recon-card-body">
+          <div class="recon-inputs">
+            <label for="actual-cc-balance">Actual Balance $</label>
+            <input type="number" id="actual-cc-balance" step="0.01" value="0.00">
+          </div>
+          <div class="recon-cleared">Cleared Charges: $<span id="cleared-cc-balance">0.00</span></div>
+          <div id="recon-cc-status" class="match-status"></div>
+        </div>
+        <div class="recon-clear-section">
+          <div class="recon-clear-title">Needs Clearing</div>
+          <div id="uncleared-list-cc"></div>
+        </div>
+        <div class="recon-clear-section">
+          <div class="recon-cleared-toggle" id="cleared-toggle-cc" role="button" tabindex="0" onclick="toggleClearedSection('cc')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleClearedSection('cc');}">
+            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+            Recently Cleared
+          </div>
+          <div id="cleared-list-cc" class="recon-cleared-list" style="display:none;"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Reports Panel -->
+  <div class="reports-panel" id="panel-reports">
+    <div class="reports-header">
+      <h2>Reports</h2>
+      <div class="reports-controls">
+        <select id="report-month" aria-label="Filter reports by month"><option value="">All Time</option></select>
+        <button class="csv-btn" id="csv-export-btn">⬇ Export CSV</button>
+      </div>
+    </div>
+    <div class="reports-body">
+      <div class="report-card" id="report-spending">
+        <h3>Spending by Envelope</h3>
+        <div class="bar-chart" id="spending-chart"></div>
+      </div>
+      <div class="report-card" id="report-savings">
+        <h3>Savings Rate</h3>
+        <div id="savings-rate-chart"></div>
+      </div>
+      <div class="report-card" id="report-cc-split">
+        <h3>CC vs Checking Split</h3>
+        <div id="cc-split-chart"></div>
+      </div>
+      <div class="report-card" id="report-envelope-health">
+        <h3>Envelope Health</h3>
+        <div id="envelope-health-chart"></div>
+      </div>
+      <div class="report-card report-card-wide" id="report-mom">
+        <div class="report-card-header">
+          <h3>Month-over-Month</h3>
+          <select id="mom-range" aria-label="Month-over-month date range">
+            <option value="3">Last 3 months</option>
+            <option value="6" selected>Last 6 months</option>
+            <option value="12">Last 12 months</option>
+            <option value="all">All time</option>
+          </select>
+        </div>
+        <div id="mom-chart"></div>
+      </div>
+    </div>
+  </div>
+  </div><!-- end main-content -->
+
+</div><!-- end app-container -->
+
+<nav class="mobile-tabs" id="mobile-tabs">
+  <button class="mobile-tab-btn active" data-tab="envelopes"><span class="tab-icon"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg></span>Envelopes</button>
+  <button class="mobile-tab-btn" data-tab="ledger"><span class="tab-icon"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h13a3 3 0 0 1 3 3v13H7a3 3 0 0 1-3-3V4z"/><line x1="9" y1="9" x2="15" y2="9"/><line x1="9" y1="13" x2="15" y2="13"/></svg></span>Ledger</button>
+  <button class="mobile-tab-btn" data-tab="recon"><span class="tab-icon"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V10l7-6 7 6v11"/><line x1="10" y1="21" x2="10" y2="14"/><line x1="14" y1="21" x2="14" y2="14"/></svg></span>Reconcile</button>
+  <button class="mobile-tab-btn" data-tab="reports"><span class="tab-icon"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="20" x2="20" y2="20"/><rect x="6" y="12" width="3" height="8"/><rect x="13" y="7" width="3" height="13"/></svg></span>Reports</button>
+</nav>
+<div class="save-flash" id="save-flash">Saved ✓</div>
+
+<script>
+
+  // --- UTILITY: SAFE MATH ---
+  // Fixes JavaScript floating-point errors (e.g., 0.1 + 0.2 = 0.30000000000000004)
+  function roundMoney(num) {
+    return Math.round(num * CENTS_PER_DOLLAR) / CENTS_PER_DOLLAR;
+  }
+
+  // Escapes user-entered text (payee, envelope name, notes) before it is interpolated
+  // into innerHTML template strings, to prevent stored XSS via persisted data.
+  function escapeHtml(str) {
+    return String(str ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  // Quotes a value for CSV export and neutralizes CSV/formula injection: a
+  // leading =, +, -, or @ is interpreted as a live formula by Excel/Sheets
+  // when the file is opened, so such values are prefixed with a straight
+  // quote to force them to be read as plain text.
+  function csvField(str) {
+    let s = String(str ?? '');
+    if (/^[=+\-@]/.test(s)) s = "'" + s;
+    return `"${s.replace(/"/g, '""')}"`;
+  }
+
+  // Always format dates as MM/DD/YYYY regardless of browser locale
+  function formatDate(dateISO) {
+    const [y, m, d] = dateISO.split('-');
+    return `${m.padStart(2,'0')}/${d.padStart(2,'0')}/${y}`;
+  }
+
+  // Today's date in local time as YYYY-MM-DD. Deliberately NOT
+  // `new Date().toISOString().split('T')[0]`, which returns the UTC date and
+  // rolls over to tomorrow in the evening for anyone west of UTC.
+  function todayISO() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+
+  // Parse any stored date string back to ISO YYYY-MM-DD for sorting
+  function dateToISO(dateStr) {
+    if (!dateStr) return '';
+    // Already ISO
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr;
+    // MM/DD/YYYY or M/D/YYYY
+    const parts = dateStr.split('/');
+    if (parts.length === 3) {
+      const [m, d, y] = parts;
+      return `${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`;
+    }
+    return dateStr;
+  }
+
+  // --- NAMED CONSTANTS (replace previously-hardcoded literals) ---
+  const CENTS_PER_DOLLAR = 100;          // roundMoney precision
+  const MOBILE_BREAKPOINT = 480;         // keep in sync with CSS @media (max-width: 480px) rules
+  const POPOVER_GAP = 6;                 // vertical offset between a detail-popover and its anchor
+  const POPOVER_VIEWPORT_MARGIN = 10;    // min distance a detail-popover keeps from any viewport edge
+  const RECONCILE_TOLERANCE = 0.01;      // float-equality tolerance for "reconciled" bank/cc diff checks
+                                          // (distinct from the HTML min="0.01" input attrs, which are a
+                                          // separate concept — minimum allowed transaction amount — and
+                                          // are left as-is even though the value is coincidentally the same)
+  const SAVE_TOAST_DURATION_MS = 1500;   // how long the "Saved" toast stays visible
+  const MS_PER_DAY = 86400000;
+  const RECEIPT_JPEG_QUALITY = 0.7;      // compression quality used when downscaling receipt photos
+  const SAVINGS_RATE_GOOD_PCT = 20;      // savings-rate report color thresholds
+  const SAVINGS_RATE_OK_PCT = 10;
+  const ENVELOPE_HEALTH_WARN_RATIO = 0.5; // envelope balance below this fraction of its goal is flagged "low"
+  const RECENTLY_CLEARED_LIMIT = 20;     // cap on the Reconcile "Recently Cleared" list
+
+  // --- STATE MANAGEMENT ---
+  const LOCAL_STORAGE_KEY = 'householdBudgetState';
+
+  // Brings an older/foreign state object up to the current schema: fills in
+  // defaults introduced after the object may have been saved, and derives
+  // fields (id, dateISO) that must exist for edit/delete/sort to work
+  // correctly. Used both for state loaded from localStorage at boot and for
+  // state loaded via Import, so imported backups can't skip normalization.
+  function normalizeState(s) {
+    Object.values(s.envelopes).forEach(env => {
+      if (typeof env.goal === 'undefined') env.goal = 0;
+    });
+    s.ledger.forEach(txn => {
+      if (typeof txn.id === 'undefined') txn.id = Date.now().toString() + Math.random();
+      if (typeof txn.cleared === 'undefined') txn.cleared = false;
+      if (typeof txn.account === 'undefined') txn.account = 'checking';
+      if (typeof txn.dateISO === 'undefined') {
+        txn.dateISO = dateToISO(txn.date);
+      }
+      // Normalize display date to MM/DD/YYYY in case it was stored in a different locale format
+      if (txn.dateISO) txn.date = formatDate(txn.dateISO);
+    });
+    if (typeof s.expectedBankBalance === 'undefined') s.expectedBankBalance = 0;
+    if (typeof s.expectedCcBalance === 'undefined') s.expectedCcBalance = 0;
+    return s;
+  }
+
+  const DEFAULT_STATE = { expectedBankBalance: 0, expectedCcBalance: 0, envelopes: {}, ledger: [] };
+  let state;
+  try {
+    const savedState = localStorage.getItem(LOCAL_STORAGE_KEY);
+    state = savedState ? JSON.parse(savedState) : { ...DEFAULT_STATE };
+  } catch (err) {
+    state = { ...DEFAULT_STATE };
+    alert('Your saved budget data could not be read (it may be corrupted) and could not be loaded. Starting with an empty budget — if you have an exported backup file, use Import to restore it.');
+  }
+  normalizeState(state);
+
+  let _flashTimer = null;
+  function flashSaved() {
+    const el = document.getElementById('save-flash');
+    el.classList.add('show');
+    clearTimeout(_flashTimer);
+    _flashTimer = setTimeout(() => el.classList.remove('show'), SAVE_TOAST_DURATION_MS);
+  }
+
+  function saveState() {
+    try {
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(state));
+      flashSaved();
+    } catch (err) {
+      alert('This device is out of storage space for the budget app. The most recent change was NOT saved. Try closing and reopening the app, or freeing up device storage, then retry.');
+    }
+  }
+
+  // ── Receipt photo storage (IndexedDB) ──
+  // Receipt photos live in IndexedDB, not localStorage. localStorage has a tiny
+  // shared quota (usually 5-10MB) for the WHOLE app; IndexedDB gives receipts
+  // their own much larger budget (typically hundreds of MB+) so photos can't
+  // crowd out your transaction history. Ledger entries only keep a small
+  // `hasReceipt: true` flag — the actual image is fetched on demand.
+  const RECEIPTS_DB_NAME = 'budgetReceiptsDB';
+  const RECEIPTS_STORE = 'receipts';
+  let _receiptsDbPromise = null;
+
+  function openReceiptsDB() {
+    if (_receiptsDbPromise) return _receiptsDbPromise;
+    _receiptsDbPromise = new Promise((resolve, reject) => {
+      if (!window.indexedDB) { reject(new Error('IndexedDB not supported on this device/browser.')); return; }
+      const req = indexedDB.open(RECEIPTS_DB_NAME, 1);
+      req.onupgradeneeded = (e) => {
+        const db = e.target.result;
+        if (!db.objectStoreNames.contains(RECEIPTS_STORE)) db.createObjectStore(RECEIPTS_STORE);
+      };
+      req.onsuccess = (e) => resolve(e.target.result);
+      req.onerror = (e) => reject(e.target.error);
+    });
+    return _receiptsDbPromise;
+  }
+
+  function saveReceiptToDB(id, dataUrl) {
+    return openReceiptsDB().then(db => new Promise((resolve, reject) => {
+      const tx = db.transaction(RECEIPTS_STORE, 'readwrite');
+      tx.objectStore(RECEIPTS_STORE).put(dataUrl, id);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    }));
+  }
+
+  function deleteReceiptFromDB(id) {
+    return openReceiptsDB().then(db => new Promise((resolve, reject) => {
+      const tx = db.transaction(RECEIPTS_STORE, 'readwrite');
+      tx.objectStore(RECEIPTS_STORE).delete(id);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    }));
+  }
+
+  function getReceiptFromDB(id) {
+    return openReceiptsDB().then(db => new Promise((resolve, reject) => {
+      const tx = db.transaction(RECEIPTS_STORE, 'readonly');
+      const req = tx.objectStore(RECEIPTS_STORE).get(id);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => reject(req.error);
+    }));
+  }
+
+  // Dumps every stored receipt as { transactionId: dataUrl }, used when
+  // building a backup file so photos travel with the export instead of
+  // being stranded on this one device.
+  function getAllReceiptsFromDB() {
+    return openReceiptsDB().then(db => new Promise((resolve, reject) => {
+      const tx = db.transaction(RECEIPTS_STORE, 'readonly');
+      const store = tx.objectStore(RECEIPTS_STORE);
+      const keysReq = store.getAllKeys();
+      const valsReq = store.getAll();
+      let keys = null, vals = null;
+      function maybeResolve() {
+        if (keys === null || vals === null) return;
+        const map = {};
+        keys.forEach((k, i) => { map[k] = vals[i]; });
+        resolve(map);
+      }
+      keysReq.onsuccess = () => { keys = keysReq.result; maybeResolve(); };
+      valsReq.onsuccess = () => { vals = valsReq.result; maybeResolve(); };
+      tx.onerror = () => reject(tx.error);
+    })).catch(() => ({}));
+  }
+
+  // In-memory cache so a receipt already fetched (or just uploaded, before the
+  // DB write even lands) doesn't need a repeat round-trip within the session.
+  const _receiptCache = new Map();
+  function getReceiptCached(id) {
+    if (_receiptCache.has(id)) return Promise.resolve(_receiptCache.get(id));
+    return getReceiptFromDB(id).then(dataUrl => { _receiptCache.set(id, dataUrl); return dataUrl; })
+      .catch(() => null);
+  }
+
+  // One-time migration: older saved states may still have the full receipt
+  // data URL sitting directly on the transaction (from before IndexedDB was
+  // used). Move any of those into IndexedDB and slim the ledger entry down to
+  // a flag, then persist the smaller state.
+  function migrateInlineReceipts() {
+    const toMigrate = state.ledger.filter(t => typeof t.receipt === 'string' && t.receipt);
+    if (toMigrate.length === 0) return Promise.resolve(false);
+    return Promise.all(toMigrate.map(t => {
+      _receiptCache.set(t.id, t.receipt);
+      return saveReceiptToDB(t.id, t.receipt).then(() => {
+        t.hasReceipt = true;
+        delete t.receipt;
+      });
+    })).then(() => { saveState(); return true; })
+      .catch(() => false);
+  }
+
+  // Left to Assign = total income logged minus total funded into envelopes.
+  // Derived fresh from the ledger every render so it never drifts.
+  function computeUnallocated() {
+    let total = 0;
+    state.ledger.forEach(txn => {
+      if (txn.type === 'income')  total = roundMoney(total + txn.amount);
+      if (txn.type === 'funding') total = roundMoney(total - txn.amount);
+    });
+    return total;
+  }
+
+  // --- DOM ELEMENTS ---
+  const unallocatedEl = document.getElementById('unallocated-amount');
+  const envelopeListEl = document.getElementById('envelope-list');
+  const ledgerBodyEl = document.getElementById('ledger-body');
+  const txnEnvelopeSelect = document.getElementById('txn-envelope');
+  const txnTypeSelect = document.getElementById('txn-type');
+  const txnDateInput = document.getElementById('txn-date');
+  const actualBankInput = document.getElementById('actual-bank-balance');
+  const clearedBalanceEl = document.getElementById('cleared-balance');
+  const reconStatusEl = document.getElementById('recon-status');
+  const actualCcInput = document.getElementById('actual-cc-balance');
+  const clearedCcBalanceEl = document.getElementById('cleared-cc-balance');
+  const reconCcStatusEl = document.getElementById('recon-cc-status');
+  const importFileEl = document.getElementById('import-file');
+
+  actualBankInput.value = state.expectedBankBalance.toFixed(2);
+  actualCcInput.value = state.expectedCcBalance.toFixed(2);
+  txnDateInput.value = todayISO(); // local date, not UTC — avoids off-by-one near midnight
+
+  // --- BACKUP & RESTORE EVENT LISTENERS ---
+  
+  document.getElementById('export-btn').addEventListener('click', () => {
+    const exportBtn = document.getElementById('export-btn');
+    const originalLabel = exportBtn.textContent;
+    exportBtn.textContent = 'Preparing…';
+    exportBtn.disabled = true;
+    getAllReceiptsFromDB().then(receiptsMap => {
+      const exportObj = Object.assign({}, state, { __receipts: receiptsMap });
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportObj, null, 2));
+      const downloadAnchorNode = document.createElement('a');
+      downloadAnchorNode.setAttribute("href", dataStr);
+      const dateStr = new Date().toISOString().split('T')[0];
+      downloadAnchorNode.setAttribute("download", `budget_backup_${dateStr}.json`);
+      document.body.appendChild(downloadAnchorNode);
+      downloadAnchorNode.click();
+      downloadAnchorNode.remove();
+      state.lastExportDate = new Date().toISOString();
+      saveState();
+      renderExportReminder();
+    }).finally(() => {
+      exportBtn.textContent = originalLabel;
+      exportBtn.disabled = false;
+    });
+  });
+
+  document.getElementById('import-btn').addEventListener('click', () => {
+    importFileEl.click(); 
+  });
+
+  importFileEl.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(event) {
+      try {
+        const importedState = JSON.parse(event.target.result);
+        if (importedState && importedState.envelopes && Array.isArray(importedState.ledger)) {
+          const receiptsMap = importedState.__receipts || {};
+          delete importedState.__receipts;
+          const receiptIds = Object.keys(receiptsMap);
+
+          normalizeState(importedState);
+          state = importedState;
+          actualBankInput.value = (state.expectedBankBalance || 0).toFixed(2);
+          actualCcInput.value = (state.expectedCcBalance || 0).toFixed(2);
+          _receiptCache.clear();
+
+          const restoreReceipts = receiptIds.length
+            ? Promise.all(receiptIds.map(id => {
+                _receiptCache.set(id, receiptsMap[id]);
+                return saveReceiptToDB(id, receiptsMap[id]);
+              })).catch(() => {
+                alert('The transaction data was restored, but some receipt photos failed to save to this device.');
+              })
+            : Promise.resolve();
+
+          restoreReceipts.then(() => {
+            saveState();
+            render();
+            alert('Backup loaded successfully!' + (receiptIds.length ? ` ${receiptIds.length} receipt photo(s) restored.` : ''));
+          });
+        } else {
+          alert('Error: This does not look like a valid budget backup file.');
+        }
+      } catch (err) {
+        alert('Error reading the file. Ensure it is a valid JSON document.');
+      }
+      importFileEl.value = '';
+    };
+    reader.readAsText(file);
+  });
+
+  // --- CORE EVENT LISTENERS ---
+
+  document.getElementById('reset-btn').addEventListener('click', () => {
+    if (confirm('Are you sure you want to delete all budget data? This cannot be undone unless you have a backup.')) {
+      localStorage.removeItem(LOCAL_STORAGE_KEY);
+      location.reload(); 
+    }
+  });
+
+  actualBankInput.addEventListener('change', (e) => {
+    state.expectedBankBalance = roundMoney(parseFloat(e.target.value) || 0);
+    saveState();
+    renderRecon();
+  });
+  actualCcInput.addEventListener('change', (e) => {
+    state.expectedCcBalance = roundMoney(parseFloat(e.target.value) || 0);
+    saveState();
+    renderRecon();
+  });
+
+  // ── Filter & Sort ──
+  // Default to current month YYYY-MM
+  const _now = new Date();
+  const _curMonth = `${_now.getFullYear()}-${String(_now.getMonth() + 1).padStart(2,'0')}`;
+
+  let filterMonth = _curMonth;
+  let filterType = '';
+  let filterAccount = '';
+  let filterEnvelope = '';
+  let filterSearch = '';
+  let sortBy = 'date-desc';
+
+  document.getElementById('filter-month').addEventListener('change', e => { filterMonth = e.target.value; renderLedger(); });
+  document.getElementById('filter-type').addEventListener('change', e => { filterType = e.target.value; renderLedger(); });
+  document.getElementById('filter-account').addEventListener('change', e => { filterAccount = e.target.value; renderLedger(); });
+  document.getElementById('filter-envelope').addEventListener('change', e => { filterEnvelope = e.target.value; renderLedger(); });
+  document.getElementById('sort-by').addEventListener('change', e => { sortBy = e.target.value; renderLedger(); });
+  document.getElementById('ledger-search').addEventListener('input', e => {
+    filterSearch = e.target.value.trim().toLowerCase();
+    document.getElementById('ledger-search-clear').style.display = filterSearch ? '' : 'none';
+    renderLedger();
+  });
+  document.getElementById('ledger-search-clear').addEventListener('click', () => {
+    filterSearch = '';
+    const searchInput = document.getElementById('ledger-search');
+    searchInput.value = '';
+    document.getElementById('ledger-search-clear').style.display = 'none';
+    searchInput.focus();
+    renderLedger();
+  });
+  document.getElementById('clear-filters').addEventListener('click', () => {
+    filterMonth = _curMonth; filterType = ''; filterAccount = ''; filterEnvelope = ''; filterSearch = ''; sortBy = 'date-desc';
+    document.getElementById('filter-month').value = _curMonth;
+    document.getElementById('filter-type').value = '';
+    document.getElementById('filter-account').value = '';
+    document.getElementById('filter-envelope').value = '';
+    document.getElementById('sort-by').value = 'date-desc';
+    document.getElementById('ledger-search').value = '';
+    document.getElementById('ledger-search-clear').style.display = 'none';
+    renderLedger();
+  });
+
+  document.getElementById('add-envelope-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const nameInput = document.getElementById('env-name');
+    const goalInput = document.getElementById('env-goal');
+    
+    const id = Date.now().toString();
+    const goalVal = roundMoney(parseFloat(goalInput.value) || 0);
+    
+    state.envelopes[id] = { name: nameInput.value, balance: 0, goal: goalVal };
+    nameInput.value = ''; goalInput.value = '';
+    
+    saveState();
+    render();
+  });
+
+  // Toggle entry form
+  const txnFormWrapper = document.getElementById('txn-form-wrapper');
+  const toggleFormBtn = document.getElementById('toggle-form-btn');
+  const filterBar = document.querySelector('.ledger-filters');
+
+  toggleFormBtn.addEventListener('click', () => {
+    const open = txnFormWrapper.style.display !== 'none';
+    txnFormWrapper.style.display = open ? 'none' : 'block';
+    toggleFormBtn.textContent = open ? '+ Add Transaction' : '✕ Cancel';
+    if (filterBar) filterBar.style.display = open ? '' : 'none';
+    // While the form is expanded, the sticky wrapper would grow taller than the
+    // panel and clip content — temporarily release it from sticky so it scrolls normally.
+    const stickyTop = document.querySelector('.ledger-sticky-top');
+    if (stickyTop) stickyTop.classList.toggle('form-expanded', !open);
+  });
+
+  // ── Envelope Transfer (Move Money) ──
+  const transferWrapper = document.getElementById('envelope-transfer-wrapper');
+  const toggleTransferBtn = document.getElementById('toggle-transfer-btn');
+  const transferFromSelect = document.getElementById('transfer-from');
+  const transferToSelect = document.getElementById('transfer-to');
+  const transferErrorEl = document.getElementById('transfer-error');
+
+  toggleTransferBtn.addEventListener('click', () => {
+    const open = transferWrapper.style.display !== 'none';
+    transferWrapper.style.display = open ? 'none' : 'block';
+    toggleTransferBtn.textContent = open ? '⇄ Move Money' : '✕ Cancel';
+    if (!open) { renderTransferDropdowns(); transferErrorEl.style.display = 'none'; }
+  });
+
+  function renderTransferDropdowns() {
+    const fromCurrent = transferFromSelect.value;
+    const toCurrent = transferToSelect.value;
+    const opts = Object.entries(state.envelopes)
+      .map(([id, env]) => `<option value="${id}">${escapeHtml(env.name)} ($${env.balance.toFixed(2)})</option>`)
+      .join('');
+    transferFromSelect.innerHTML = '<option value="" disabled selected>Select Envelope</option>' + opts;
+    transferToSelect.innerHTML = '<option value="" disabled selected>Select Envelope</option>' + opts;
+    if (state.envelopes[fromCurrent]) transferFromSelect.value = fromCurrent;
+    if (state.envelopes[toCurrent]) transferToSelect.value = toCurrent;
+  }
+
+  // Feeds the "payee-list" datalist so typing a payee/source name suggests
+  // names already used on other transactions — helps keep spellings and
+  // capitalization consistent from month to month.
+  function renderPayeeList() {
+    const listEl = document.getElementById('payee-list');
+    if (!listEl) return;
+    const seen = new Set();
+    const names = [];
+    // Most recently used first, so common recent payees surface first.
+    [...state.ledger]
+      .sort((a, b) => (b.dateISO || '').localeCompare(a.dateISO || ''))
+      .forEach(txn => {
+        const name = (txn.payee || '').trim();
+        if (!name) return;
+        const key = name.toLowerCase();
+        if (seen.has(key)) return;
+        seen.add(key);
+        names.push(name);
+      });
+    listEl.innerHTML = names.map(n => `<option value="${escapeHtml(n)}"></option>`).join('');
+  }
+
+  document.getElementById('envelope-transfer-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    transferErrorEl.style.display = 'none';
+
+    const fromId = transferFromSelect.value;
+    const toId = transferToSelect.value;
+    const amountInput = document.getElementById('transfer-amount');
+    const amount = roundMoney(parseFloat(amountInput.value));
+    const note = document.getElementById('transfer-note').value.trim();
+
+    if (!fromId || !toId) {
+      transferErrorEl.textContent = 'Choose both a source and destination envelope.';
+      transferErrorEl.style.display = 'block';
+      return;
+    }
+    if (fromId === toId) {
+      transferErrorEl.textContent = 'Source and destination envelopes must be different.';
+      transferErrorEl.style.display = 'block';
+      return;
+    }
+    if (isNaN(amount) || amount <= 0) {
+      amountInput.style.borderColor = 'var(--danger)';
+      amountInput.focus();
+      return;
+    }
+    amountInput.style.borderColor = '';
+
+    state.envelopes[fromId].balance = roundMoney(state.envelopes[fromId].balance - amount);
+    state.envelopes[toId].balance = roundMoney(state.envelopes[toId].balance + amount);
+
+    const nowISO = todayISO();
+    const payee = note || `Transfer: ${state.envelopes[fromId].name} → ${state.envelopes[toId].name}`;
+    state.ledger.unshift({
+      id: Date.now().toString() + Math.random(),
+      date: formatDate(nowISO),
+      dateISO: nowISO,
+      payee,
+      categoryId: fromId,
+      toEnvelopeId: toId,
+      amount,
+      type: 'envelope-transfer',
+      account: 'internal',
+      cleared: true
+    });
+
+    document.getElementById('transfer-amount').value = '';
+    document.getElementById('transfer-note').value = '';
+    transferFromSelect.value = '';
+    transferToSelect.value = '';
+
+    saveState();
+    render();
+  });
+
+  const txnAccountSelect = document.getElementById('txn-account');
+
+  txnTypeSelect.addEventListener('change', (e) => {
+    const val = e.target.value;
+    if (val === 'income') {
+      txnEnvelopeSelect.innerHTML = '<option value="unallocated">Left to Assign (Pool)</option>';
+      txnEnvelopeSelect.disabled = true;
+      txnAccountSelect.value = 'checking';
+      txnAccountSelect.disabled = true;
+      setSplitToggleVisible(false);
+    } else if (val === 'cc-payment') {
+      txnEnvelopeSelect.innerHTML = '<option value="none">N/A — CC Payment</option>';
+      txnEnvelopeSelect.disabled = true;
+      txnAccountSelect.value = 'checking';
+      txnAccountSelect.disabled = true;
+      setSplitToggleVisible(false);
+    } else if (val === 'cc-cashback') {
+      txnEnvelopeSelect.innerHTML = '<option value="none">N/A — Cash Back</option>';
+      txnEnvelopeSelect.disabled = true;
+      txnAccountSelect.value = 'cc';
+      txnAccountSelect.disabled = true;
+      setSplitToggleVisible(false);
+    } else if (val === 'transfer') {
+      txnAccountSelect.value = 'checking';
+      txnAccountSelect.disabled = true;
+      txnEnvelopeSelect.disabled = false;
+      renderDropdown();
+      setSplitToggleVisible(false);
+    } else {
+      txnEnvelopeSelect.disabled = false;
+      txnAccountSelect.disabled = false;
+      renderDropdown();
+      setSplitToggleVisible(val === 'expense');
+    }
+  });
+  setSplitToggleVisible(txnTypeSelect.value === 'expense');
+
+  // ── Receipt photo handling (Add Transaction form) ──
+  // Photos are downscaled and re-encoded as JPEG before being stored, since
+  // localStorage has a small quota (usually 5-10MB total) shared by everything
+  // in the app. A raw phone photo could eat that budget in one or two receipts.
+  let pendingReceiptDataUrl = null;
+
+  function compressImageFile(file, callback) {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const MAX_DIM = 1000;
+        let { width, height } = img;
+        if (width > MAX_DIM || height > MAX_DIM) {
+          if (width > height) { height = Math.round(height * (MAX_DIM / width)); width = MAX_DIM; }
+          else { width = Math.round(width * (MAX_DIM / height)); height = MAX_DIM; }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+        callback(canvas.toDataURL('image/jpeg', RECEIPT_JPEG_QUALITY));
+      };
+      img.onerror = () => { alert('Could not read that image. Try a different photo.'); };
+      img.src = e.target.result;
+    };
+    reader.onerror = () => { alert('Could not read that file.'); };
+    reader.readAsDataURL(file);
+  }
+
+  function renderReceiptPreview(containerId, dataUrl, onRemove) {
+    const el = document.getElementById(containerId);
+    if (!dataUrl) { el.innerHTML = ''; return; }
+    el.innerHTML = '<div class="receipt-thumb-wrap"><img class="receipt-thumb" src="' + dataUrl + '" alt="Receipt photo"><button type="button" class="receipt-remove-btn" title="Remove photo" aria-label="Remove photo">✕</button></div>';
+    el.querySelector('.receipt-thumb').addEventListener('click', () => openLightbox(dataUrl));
+    el.querySelector('.receipt-remove-btn').addEventListener('click', onRemove);
+  }
+
+  function clearPendingReceipt() {
+    pendingReceiptDataUrl = null;
+    document.getElementById('txn-receipt-input').value = '';
+    renderReceiptPreview('txn-receipt-preview', null);
+  }
+
+  document.getElementById('txn-receipt-input').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    compressImageFile(file, (dataUrl) => {
+      pendingReceiptDataUrl = dataUrl;
+      renderReceiptPreview('txn-receipt-preview', dataUrl, clearPendingReceipt);
+    });
+  });
+
+  function openLightbox(dataUrl) {
+    const trigger = document.activeElement;
+    const overlay = document.createElement('div');
+    overlay.className = 'lightbox-overlay';
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-modal', 'true');
+    overlay.setAttribute('aria-label', 'Receipt photo');
+    overlay.innerHTML = '<button class="lightbox-close" title="Close" aria-label="Close">✕</button><img class="lightbox-img" src="' + dataUrl + '" alt="Receipt photo">';
+    const closeLightbox = () => {
+      overlay.remove();
+      document.removeEventListener('keydown', escHandler);
+      if (trigger && typeof trigger.focus === 'function' && document.contains(trigger)) trigger.focus();
+    };
+    function escHandler(e) { if (e.key === 'Escape') closeLightbox(); }
+    overlay.addEventListener('click', (e) => { if (e.target === overlay || e.target.classList.contains('lightbox-close')) closeLightbox(); });
+    document.addEventListener('keydown', escHandler);
+    document.body.appendChild(overlay);
+    overlay.querySelector('.lightbox-close').focus();
+  }
+
+  // ── Split transaction helpers (Add Transaction form) ──
+  let _splitRowSeq = 0;
+
+  function splitEnvelopeOptionsHtml(selectedId) {
+    return '<option value="" disabled' + (selectedId ? '' : ' selected') + '>Select Envelope</option>' +
+      Object.entries(state.envelopes).map(([id, env]) =>
+        `<option value="${id}"${selectedId === id ? ' selected' : ''}>${escapeHtml(env.name)}</option>`
+      ).join('');
+  }
+
+  function setSplitToggleVisible(visible) {
+    const wrap = document.getElementById('txn-split-toggle-wrap');
+    wrap.style.display = visible ? '' : 'none';
+    if (!visible) {
+      document.getElementById('txn-split-toggle').checked = false;
+      setSplitModeActive(false);
+    }
+  }
+
+  function setSplitModeActive(active) {
+    document.getElementById('txn-split-container').style.display = active ? '' : 'none';
+    document.getElementById('txn-envelope').closest('.txn-field').style.display = active ? 'none' : '';
+    txnEnvelopeSelect.required = !active;
+    document.getElementById('txn-amount').readOnly = active;
+    if (active) {
+      resetSplitRows();
+    }
+  }
+
+  function resetSplitRows() {
+    document.getElementById('txn-split-rows').innerHTML = '';
+    addSplitRow();
+    addSplitRow();
+  }
+
+  window.addSplitRow = function() {
+    const rowId = 'split-row-' + (_splitRowSeq++);
+    const row = document.createElement('div');
+    row.className = 'split-row-item';
+    row.dataset.rowId = rowId;
+    row.innerHTML = '<select class="split-row-envelope">' + splitEnvelopeOptionsHtml(null) + '</select>'
+      + '<input type="number" class="split-row-amount" step="0.01" min="0.01" placeholder="0.00">'
+      + '<button type="button" class="split-remove-btn" onclick="removeSplitRow(\'' + rowId + '\')" title="Remove this split">'
+      + '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>'
+      + '</button>';
+    document.getElementById('txn-split-rows').appendChild(row);
+    updateSplitTotal();
+  };
+
+  window.removeSplitRow = function(rowId) {
+    const rows = document.getElementById('txn-split-rows');
+    if (rows.children.length <= 1) return; // always keep at least one row
+    const row = rows.querySelector('[data-row-id="' + rowId + '"]');
+    if (row) row.remove();
+    updateSplitTotal();
+  };
+
+  function getSplitRows() {
+    return [...document.querySelectorAll('#txn-split-rows .split-row-item')].map(row => ({
+      categoryId: row.querySelector('.split-row-envelope').value,
+      amount: roundMoney(parseFloat(row.querySelector('.split-row-amount').value) || 0)
+    }));
+  }
+
+  function updateSplitTotal() {
+    const rows = getSplitRows();
+    const total = roundMoney(rows.reduce((s, r) => s + r.amount, 0));
+    document.getElementById('txn-amount').value = total ? total.toFixed(2) : '';
+    document.getElementById('txn-split-total').textContent = 'Total: $' + total.toFixed(2);
+  }
+
+  document.getElementById('txn-split-toggle').addEventListener('change', (e) => {
+    setSplitModeActive(e.target.checked);
+  });
+  document.getElementById('txn-split-rows').addEventListener('input', updateSplitTotal);
+
+  document.getElementById('add-transaction-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const type = document.getElementById('txn-type').value;
+    const account = document.getElementById('txn-account').value;
+    const payee = document.getElementById('txn-payee').value;
+    const dateVal = document.getElementById('txn-date').value;
+    const formattedDate = formatDate(dateVal);
+    const note = document.getElementById('txn-note').value.trim();
+    const isSplitMode = type === 'expense' && document.getElementById('txn-split-toggle').checked;
+
+    let amount, categoryId, splitRows = null;
+    if (isSplitMode) {
+      const rows = getSplitRows();
+      splitRows = rows.filter(r => r.categoryId && r.amount > 0);
+      if (splitRows.length < 2) {
+        alert('Add at least two envelopes with amounts to split this transaction.');
+        return;
+      }
+      amount = roundMoney(splitRows.reduce((s, r) => s + r.amount, 0));
+      if (amount <= 0) { alert('Split amounts must add up to more than $0.'); return; }
+      categoryId = undefined;
+    } else {
+      amount = roundMoney(parseFloat(document.getElementById('txn-amount').value));
+      categoryId = document.getElementById('txn-envelope').value;
+    }
+
+    const txn = {
+      id: Date.now().toString() + Math.random(),
+      date: formattedDate,
+      dateISO: dateVal,
+      payee,
+      categoryId,
+      amount,
+      type: isSplitMode ? 'split' : type,
+      cleared: false,
+      account: account,
+      note: note || undefined,
+      hasReceipt: !!pendingReceiptDataUrl
+    };
+    if (isSplitMode) txn.splits = splitRows;
+
+    // Safe mathematical additions/subtractions
+    if (isSplitMode) {
+      splitRows.forEach(s => {
+        if (state.envelopes[s.categoryId]) {
+          state.envelopes[s.categoryId].balance = roundMoney(state.envelopes[s.categoryId].balance - s.amount);
+        }
+      });
+    } else if (type === 'income') {
+      txn.categoryId = 'unallocated';
+      txn.account = 'checking';
+    } else if (type === 'cc-payment') {
+      txn.categoryId = 'none';
+      txn.account = 'checking';
+    } else if (type === 'cc-cashback') {
+      txn.categoryId = 'none';
+      txn.account = 'cc';
+    } else if (type === 'transfer') {
+      txn.account = 'checking';
+      if (state.envelopes[categoryId]) {
+        state.envelopes[categoryId].balance = roundMoney(state.envelopes[categoryId].balance - amount);
+      }
+    } else if (type === 'expense') {
+      if (state.envelopes[categoryId]) {
+        state.envelopes[categoryId].balance = roundMoney(state.envelopes[categoryId].balance - amount);
+      }
+    }
+
+    state.ledger.unshift(txn); 
+
+    if (pendingReceiptDataUrl) {
+      _receiptCache.set(txn.id, pendingReceiptDataUrl);
+      saveReceiptToDB(txn.id, pendingReceiptDataUrl).catch(() => {
+        alert('The transaction saved, but the receipt photo could not be stored. You can try re-attaching it by editing this transaction.');
+      });
+    }
+
+    document.getElementById('txn-amount').value = '';
+    document.getElementById('txn-payee').value = '';
+    document.getElementById('txn-note').value = '';
+    clearPendingReceipt();
+    document.getElementById('txn-split-toggle').checked = false;
+    setSplitModeActive(false);
+    
+    if(type === 'income' || type === 'cc-payment' || type === 'cc-cashback') {
+        txnTypeSelect.value = 'expense';
+        txnEnvelopeSelect.disabled = false;
+        txnAccountSelect.disabled = false;
+        renderDropdown();
+    }
+    
+    saveState();
+    render();
+  });
+
+  // --- FUNCTIONS ---
+
+  window.toggleClear = function(id) {
+    const txn = state.ledger.find(t => t.id === id);
+    if (txn) {
+      txn.cleared = !txn.cleared;
+      saveState();
+      renderRecon(); 
+    }
+  };
+
+  window.showFundInput = function(id) {
+    // Hide any other open fund rows first
+    document.querySelectorAll('.fund-input-row').forEach(el => el.style.display = 'none');
+    const row = document.getElementById('fund-row-' + id);
+    if (row) {
+      row.style.display = 'flex';
+      const input = document.getElementById('fund-amount-' + id);
+      if (input) { input.value = ''; input.focus(); }
+    }
+  };
+
+  window.hideFundInput = function(id) {
+    const row = document.getElementById('fund-row-' + id);
+    if (row) row.style.display = 'none';
+  };
+
+  window.confirmFund = function(id) {
+    const input = document.getElementById('fund-amount-' + id);
+    const amount = roundMoney(parseFloat(input.value));
+    const available = computeUnallocated();
+    if (isNaN(amount) || amount <= 0) { input.focus(); return; }
+    if (amount > available) {
+      input.style.borderColor = 'var(--danger)';
+      input.title = `Only $${available.toFixed(2)} available`;
+      input.focus();
+      return;
+    }
+    input.style.borderColor = '';
+    hideFundInput(id);
+    processFunding(id, amount, 'Manual Funding');
+  };
+
+  window.fundGoal = function(id) {
+    const env = state.envelopes[id];
+    if (env.goal <= 0) return alert('No paycheck goal set for this envelope.');
+    const available = computeUnallocated();
+    if (available < env.goal) return alert(`Not enough funds to assign. You need $${env.goal.toFixed(2)} but only have $${available.toFixed(2)}.`);
+
+    processFunding(id, env.goal, 'Paycheck Goal Funded');
+  };
+
+  function processFunding(id, amount, memo) {
+    state.envelopes[id].balance = roundMoney(state.envelopes[id].balance + amount); // unallocated computed from ledger
+
+    const envName = state.envelopes[id].name;
+    const nowISO = todayISO();
+    state.ledger.unshift({
+      id: Date.now().toString() + Math.random(),
+      date: formatDate(nowISO),
+      dateISO: nowISO,
+      payee: `${memo} → ${envName}`,
+      categoryId: id,
+      amount: amount,
+      type: 'funding',
+      account: 'checking',
+      cleared: true 
+    });
+
+    saveState();
+    render();
+  }
+
+  window.deleteTransaction = function(id) {
+    if (!confirm("Are you sure you want to delete this transaction? This will reverse its effect on your balances.")) return;
+    
+    const txnIndex = state.ledger.findIndex(t => t.id === id);
+    if (txnIndex === -1) return;
+    const txn = state.ledger[txnIndex];
+
+    // Reverse the financial impact securely
+    if (txn.type === 'cc-cashback') {
+      // No reversal needed
+    } else if (txn.type === 'split') {
+      (txn.splits || []).forEach(s => {
+        if (state.envelopes[s.categoryId]) {
+          state.envelopes[s.categoryId].balance = roundMoney(state.envelopes[s.categoryId].balance + s.amount);
+        }
+      });
+    } else if (txn.type === 'envelope-transfer') {
+      if (state.envelopes[txn.categoryId]) {
+        state.envelopes[txn.categoryId].balance = roundMoney(state.envelopes[txn.categoryId].balance + txn.amount);
+      }
+      if (state.envelopes[txn.toEnvelopeId]) {
+        state.envelopes[txn.toEnvelopeId].balance = roundMoney(state.envelopes[txn.toEnvelopeId].balance - txn.amount);
+      }
+    } else if (txn.type === 'transfer') {
+      if (state.envelopes[txn.categoryId]) {
+        state.envelopes[txn.categoryId].balance = roundMoney(state.envelopes[txn.categoryId].balance + txn.amount);
+      }
+    } else if (txn.type === 'income' || txn.type === 'cc-payment') {
+      // unallocated/recon is computed from ledger — removing the txn is sufficient
+    } else if (txn.type === 'expense') {
+      if (state.envelopes[txn.categoryId]) {
+        state.envelopes[txn.categoryId].balance = roundMoney(state.envelopes[txn.categoryId].balance + txn.amount);
+      } else {
+        // Edge case: envelope was deleted. Expense just gets removed from ledger.
+      }
+    } else if (txn.type === 'funding') {
+      if (state.envelopes[txn.categoryId]) {
+        // unallocated is computed — just reverse the envelope balance
+        state.envelopes[txn.categoryId].balance = roundMoney(state.envelopes[txn.categoryId].balance - txn.amount);
+      }
+      // Note: If a funding transaction's envelope no longer exists, we purposefully do nothing.
+      // The envelope's final balance was already poured back into Unallocated when it was deleted.
+    }
+
+    state.ledger.splice(txnIndex, 1);
+    if (txn.hasReceipt) {
+      _receiptCache.delete(id);
+      deleteReceiptFromDB(id).catch(() => {});
+    }
+    saveState();
+    render();
+  };
+
+  window.deleteEnvelope = function(id) {
+    if (!confirm(`Delete "${state.envelopes[id].name}"? Any remaining balance will be returned to "Left to Assign".`)) return;
+
+    const env = state.envelopes[id];
+    if (env.balance !== 0) {
+      // A negative "funding" entry reverses the original funding, returning
+      // the envelope's balance to the Left to Assign pool.
+      const nowISO = todayISO();
+      state.ledger.unshift({
+        id: Date.now().toString() + Math.random(),
+        date: formatDate(nowISO),
+        dateISO: nowISO,
+        payee: `Envelope Deleted → ${env.name}`,
+        categoryId: id,
+        amount: roundMoney(-env.balance),
+        type: 'funding',
+        account: 'checking',
+        cleared: true
+      });
+    }
+
+    delete state.envelopes[id];
+    saveState();
+    render();
+  };
+
+  function renderRecon() {
+    let checkingCleared = 0;
+    let ccCleared = 0;
+
+    state.ledger.forEach(txn => {
+      if (!txn.cleared || txn.type === 'funding') return;
+      const isChecking = txn.account !== 'cc';
+      if (txn.type === 'income') {
+        checkingCleared = roundMoney(checkingCleared + txn.amount);
+      } else if (txn.type === 'expense') {
+        if (isChecking) checkingCleared = roundMoney(checkingCleared - txn.amount);
+        else ccCleared = roundMoney(ccCleared + txn.amount);
+      } else if (txn.type === 'cc-payment') {
+        checkingCleared = roundMoney(checkingCleared - txn.amount);
+        ccCleared = roundMoney(ccCleared - txn.amount);
+      } else if (txn.type === 'cc-cashback') {
+        ccCleared = roundMoney(ccCleared - txn.amount);
+      } else if (txn.type === 'transfer') {
+        checkingCleared = roundMoney(checkingCleared - txn.amount);
+      } else if (txn.type === 'split') {
+        if (isChecking) checkingCleared = roundMoney(checkingCleared - txn.amount);
+        else ccCleared = roundMoney(ccCleared + txn.amount);
+      }
+    });
+
+    clearedBalanceEl.textContent = checkingCleared.toFixed(2);
+    clearedCcBalanceEl.textContent = ccCleared.toFixed(2);
+
+    const actualBank = roundMoney(parseFloat(actualBankInput.value) || 0);
+    const bankDiff = roundMoney(Math.abs(checkingCleared - actualBank));
+    if (bankDiff < RECONCILE_TOLERANCE) {
+      reconStatusEl.textContent = 'MATCHED';
+      reconStatusEl.className = 'match-status status-match';
+    } else {
+      reconStatusEl.textContent = `DIFF: $${bankDiff.toFixed(2)}`;
+      reconStatusEl.className = 'match-status status-mismatch';
+    }
+
+    const actualCc = roundMoney(parseFloat(actualCcInput.value) || 0);
+    const ccDiff = roundMoney(Math.abs(ccCleared - actualCc));
+    if (ccDiff < RECONCILE_TOLERANCE) {
+      reconCcStatusEl.textContent = 'MATCHED';
+      reconCcStatusEl.className = 'match-status status-match';
+    } else {
+      reconCcStatusEl.textContent = `DIFF: $${ccDiff.toFixed(2)}`;
+      reconCcStatusEl.className = 'match-status status-mismatch';
+    }
+
+    renderReconLists();
+  }
+
+  // ── EXPORT REMINDER ──
+  let _exportReminderDismissed = false;
+  const EXPORT_REMINDER_THRESHOLD_DAYS = 14;
+
+  function renderExportReminder() {
+    const banner = document.getElementById('export-reminder-banner');
+    const textEl = document.getElementById('export-reminder-text');
+    if (!banner) return;
+
+    if (_exportReminderDismissed) { banner.style.display = 'none'; return; }
+
+    if (!state.lastExportDate) {
+      // Never exported — only nag once there's actually something worth backing up.
+      if (state.ledger && state.ledger.length > 0) {
+        textEl.textContent = "You haven't backed up your data yet.";
+        banner.style.display = 'flex';
+      } else {
+        banner.style.display = 'none';
+      }
+      return;
+    }
+
+    const daysSince = Math.floor((Date.now() - new Date(state.lastExportDate).getTime()) / MS_PER_DAY);
+    if (daysSince >= EXPORT_REMINDER_THRESHOLD_DAYS) {
+      textEl.textContent = `It's been ${daysSince} days since your last backup.`;
+      banner.style.display = 'flex';
+    } else {
+      banner.style.display = 'none';
+    }
+  }
+
+  window.dismissExportReminder = function() {
+    _exportReminderDismissed = true;
+    const banner = document.getElementById('export-reminder-banner');
+    if (banner) banner.style.display = 'none';
+  };
+
+  function render() {
+    renderExportReminder();
+    const unallocated = computeUnallocated();
+    unallocatedEl.textContent = unallocated.toFixed(2);
+    const pill = unallocatedEl.closest('.unallocated');
+    if (unallocated < 0) {
+      pill.style.background = 'var(--danger)';
+    } else {
+      pill.style.background = 'var(--primary)';
+    }
+    
+    const envelopeEntries = Object.entries(state.envelopes);
+    
+    if (envelopeEntries.length === 0) {
+        envelopeListEl.innerHTML = '<div class="empty-state">No envelopes yet. Add one above to get started!</div>';
+    } else {
+        envelopeListEl.innerHTML = envelopeEntries.map(([id, env]) => {
+          const isNegative = env.balance < 0;
+          const balanceStyle = `font-weight: ${isNegative ? 'bold' : 'normal'}; color: ${isNegative ? 'var(--danger)' : 'inherit'}`;
+          
+          const borderColor = env.balance < 0 ? 'var(--danger)' : 'var(--primary)';
+          let fundButtons = `<button class="fund-btn" onclick="showFundInput('${id}')">Custom Fund</button>`;
+          if (env.goal > 0) {
+            fundButtons = `<button class="quick-fund-btn" onclick="fundGoal('${id}')" title="Fund $${env.goal.toFixed(2)}">+ Fund Goal</button>` + fundButtons;
+          }
+    
+          const goalHtml = env.goal > 0 ? '<span class="envelope-goal">Goal: $' + env.goal.toFixed(2) + ' / paycheck</span>' : '<span class="envelope-goal">No goal set</span>';
+          return `
+          <div class="envelope-item" id="env-item-${id}" style="border-left-color: ${borderColor};">
+            <div class="env-info">
+              <span class="envelope-name">${escapeHtml(env.name)}</span>
+              ${goalHtml}
+            </div>
+            <div class="envelope-actions">
+              <span class="env-balance" style="${balanceStyle}">$${env.balance.toFixed(2)}</span>
+              ${fundButtons}
+              <button class="edit-btn" onclick="openEnvEdit('${id}')" title="Edit Envelope">✎</button>
+              <button class="delete-btn" onclick="deleteEnvelope('${id}')" title="Delete Envelope">✕</button>
+            </div>
+            <div class="fund-input-row" id="fund-row-${id}" style="display:none;">
+              <input type="number" id="fund-amount-${id}" placeholder="Amount" step="0.01" min="0.01" aria-label="Fund amount">
+              <button class="confirm-btn" onclick="confirmFund('${id}')">Fund</button>
+              <button class="cancel-btn" onclick="hideFundInput('${id}')">Cancel</button>
+            </div>
+            <div class="fund-input-row" id="env-edit-row-${id}" style="display:none;">
+              <input type="text" id="env-edit-name-${id}" value="${escapeHtml(env.name)}" placeholder="Name" aria-label="Envelope name">
+              <input type="number" id="env-edit-goal-${id}" value="${env.goal || ''}" placeholder="Goal $" step="0.01" min="0" aria-label="Per paycheck goal amount">
+              <button class="confirm-btn" onclick="saveEnvEdit('${id}')">Save</button>
+              <button class="cancel-btn" onclick="closeEnvEdit('${id}')">Cancel</button>
+            </div>
+          </div>
+        `}).join('');
+    }
+
+    renderLedger();
+    renderDropdown();
+    renderTransferDropdowns();
+    renderPayeeList();
+    renderRecon();
+    if (typeof renderReports === 'function') renderReports();
+    // Dim recon bar until data exists
+    const reconPanel = document.getElementById('panel-recon');
+    if (reconPanel) {
+      if (state.ledger.length === 0) reconPanel.style.opacity = '0.4';
+      else reconPanel.style.opacity = '1';
+    }
+  }
+
+  function getMonthKey(dateISO) {
+    const iso = dateISO || '';
+    if (!iso) return '';
+    if (iso.includes('/')) return dateToISO(iso).slice(0, 7);
+    return iso.slice(0, 7);
+  }
+
+  function formatMonthKey(key) {
+    if (!key) return 'All Time';
+    const [y, m] = key.split('-');
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return `${months[parseInt(m, 10) - 1]} ${y}`;
+  }
+
+  function renderLedger() {
+    closeDetailPopover();
+    // Build month filter options from all ledger months
+    const monthFilterEl = document.getElementById('filter-month');
+    const allMonthKeys = new Set();
+    state.ledger.forEach(txn => { if (txn.dateISO) allMonthKeys.add(getMonthKey(txn.dateISO)); });
+    const sortedMonths = [...allMonthKeys].sort().reverse();
+    const currentMonthSel = monthFilterEl.value;
+    monthFilterEl.innerHTML = '<option value="">All Time</option>' +
+      sortedMonths.map(k => `<option value="${k}"${k === currentMonthSel ? ' selected' : ''}>${formatMonthKey(k)}</option>`).join('');
+    // Re-apply saved selection (including default current month on first load)
+    if (filterMonth) monthFilterEl.value = filterMonth;
+
+    // Update envelope filter options
+    const filterEnvEl = document.getElementById('filter-envelope');
+    const currentEnvFilter = filterEnvEl.value;
+    filterEnvEl.innerHTML = '<option value="">All Envelopes</option>' +
+      Object.entries(state.envelopes).map(([id, env]) =>
+        `<option value="${id}">${escapeHtml(env.name)}</option>`
+      ).join('');
+    if (currentEnvFilter) filterEnvEl.value = currentEnvFilter;
+
+    // Apply filters
+    let txns = state.ledger.filter(txn => {
+      if (filterMonth && getMonthKey(txn.dateISO) !== filterMonth) return false;
+      if (filterType && txn.type !== filterType) return false;
+      if (filterAccount && (txn.account || 'checking') !== filterAccount) return false;
+      if (filterEnvelope) {
+        const matchesSplit = txn.type === 'split' && (txn.splits || []).some(s => s.categoryId === filterEnvelope);
+        if (txn.categoryId !== filterEnvelope && txn.toEnvelopeId !== filterEnvelope && !matchesSplit) return false;
+      }
+      if (filterSearch) {
+        const haystack = ((txn.payee || '') + ' ' + (txn.note || '')).toLowerCase();
+        if (!haystack.includes(filterSearch)) return false;
+      }
+      return true;
+    });
+
+    // Apply sort
+    txns.sort((a, b) => {
+      if (sortBy === 'date-desc') return (b.dateISO || b.date).localeCompare(a.dateISO || a.date);
+      if (sortBy === 'date-asc')  return (a.dateISO || a.date).localeCompare(b.dateISO || b.date);
+      if (sortBy === 'amount-desc') return b.amount - a.amount;
+      if (sortBy === 'amount-asc')  return a.amount - b.amount;
+      return 0;
+    });
+
+    if (txns.length === 0) {
+      ledgerBodyEl.innerHTML = state.ledger.length === 0
+        ? '<tr><td colspan="6"><div class="empty-state">No transactions recorded yet.</div></td></tr>'
+        : '<tr><td colspan="6"><div class="empty-state">No transactions match your filters.</div></td></tr>';
+      return;
+    }
+
+    // Compute running checking balance across ALL ledger (not filtered) sorted date-asc
+    const allSorted = [...state.ledger]
+      .filter(t => t.type !== 'funding' && t.type !== 'envelope-transfer')
+      .sort((a,b) => (a.dateISO||a.date).localeCompare(b.dateISO||b.date));
+    let runningMap = {};
+    let running = 0;
+    allSorted.forEach(t => {
+      if (t.type === 'income') running = roundMoney(running + t.amount);
+      else if ((t.type === 'expense' || t.type === 'split') && t.account !== 'cc') running = roundMoney(running - t.amount);
+      else if (t.type === 'cc-payment') running = roundMoney(running - t.amount);
+      else if (t.type === 'transfer') running = roundMoney(running - t.amount);
+      runningMap[t.id] = running;
+    });
+
+    ledgerBodyEl.innerHTML = txns.map(txn => {
+      let catName = 'Left to Assign';
+      if (txn.type === 'cc-payment') {
+        catName = '<span style="color:var(--primary); font-style:italic; font-weight:600;">CC Payment</span>';
+      } else if (txn.type === 'envelope-transfer') {
+        const fromName = state.envelopes[txn.categoryId] ? escapeHtml(state.envelopes[txn.categoryId].name) : '<span style="color:var(--text-muted); font-style:italic;">Deleted Envelope</span>';
+        const toName = state.envelopes[txn.toEnvelopeId] ? escapeHtml(state.envelopes[txn.toEnvelopeId].name) : '<span style="color:var(--text-muted); font-style:italic;">Deleted Envelope</span>';
+        catName = `${fromName} → ${toName}`;
+      } else if (txn.type === 'split') {
+        catName = (txn.splits || []).map(s => state.envelopes[s.categoryId] ? escapeHtml(state.envelopes[s.categoryId].name) : 'Deleted Envelope').join(', ');
+      } else if (txn.categoryId !== 'unallocated' && state.envelopes[txn.categoryId]) {
+        catName = escapeHtml(state.envelopes[txn.categoryId].name);
+      } else if (txn.categoryId !== 'unallocated' && txn.categoryId !== 'none' && !state.envelopes[txn.categoryId]) {
+        catName = '<span style="color:var(--text-muted); font-style:italic;">Deleted Envelope</span>';
+      }
+
+      let amountHtml = '';
+      if (txn.type === 'income' || txn.type === 'funding') {
+        amountHtml = `<span class="amount-positive"><span class="amt-full">+$${txn.amount.toFixed(2)}</span><span class="amt-short">+${txn.amount.toFixed(2)}</span></span>`;
+      } else if (txn.type === 'cc-payment') {
+        amountHtml = `<span class="amount-negative" title="CC Payment"><span class="amt-full">-$${txn.amount.toFixed(2)}</span><span class="amt-short">-${txn.amount.toFixed(2)}</span></span>`;
+      } else if (txn.type === 'cc-cashback') {
+        amountHtml = `<span class="amount-positive" title="CC Cash Back"><span class="amt-full">+$${txn.amount.toFixed(2)}</span><span class="amt-short">+${txn.amount.toFixed(2)}</span></span>`;
+      } else if (txn.type === 'transfer') {
+        amountHtml = `<span style="color:var(--text-muted)" title="Transfer to Savings"><span class="amt-full">↗ $${txn.amount.toFixed(2)}</span><span class="amt-short">↗ ${txn.amount.toFixed(2)}</span></span>`;
+      } else if (txn.type === 'envelope-transfer') {
+        amountHtml = `<span style="color:var(--text-muted)" title="Envelope Transfer"><span class="amt-full">⇄ $${txn.amount.toFixed(2)}</span><span class="amt-short">⇄ ${txn.amount.toFixed(2)}</span></span>`;
+      } else {
+        amountHtml = `<span class="amount-negative"><span class="amt-full">-$${txn.amount.toFixed(2)}</span><span class="amt-short">-${txn.amount.toFixed(2)}</span></span>`;
+      }
+
+      const runBal = runningMap[txn.id] !== undefined ? runningMap[txn.id] : null;
+      const accountBadge = txn.account === 'cc'
+        ? '<span class="account-badge">CC</span>'
+        : '';
+
+      const envOptions = Object.entries(state.envelopes)
+        .map(([eid, env]) => `<option value="${eid}"${txn.categoryId === eid ? ' selected' : ''}>${escapeHtml(env.name)}</option>`)
+        .join('');
+      const incomeOption = txn.type === 'income' ? 'selected' : '';
+      const expenseOption = txn.type === 'expense' ? 'selected' : '';
+      const fundingOption = txn.type === 'funding' ? 'selected' : '';
+      const chkSelected = (txn.account || 'checking') === 'checking' ? 'selected' : '';
+      const ccSelected = (txn.account || 'checking') === 'cc' ? 'selected' : '';
+      let catSelect;
+      if (txn.type === 'income') {
+        catSelect = '<select disabled aria-label="Category"><option>Left to Assign</option></select>';
+      } else {
+        catSelect = '<select id="edit-cat-' + txn.id + '" aria-label="Category">' + envOptions + '</select>';
+      }
+
+      const hasDetail = !!(txn.note || txn.hasReceipt || txn.type === 'split');
+      const noteIconSvg = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h13a3 3 0 0 1 3 3v13H7a3 3 0 0 1-3-3V4z"/><line x1="9" y1="9" x2="15" y2="9"/><line x1="9" y1="13" x2="15" y2="13"/></svg>`;
+      const clipIconSvg = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a5.5 5.5 0 0 1-7.78-7.78l9.19-9.19a3.5 3.5 0 0 1 4.95 4.95l-9.2 9.19a1.5 1.5 0 0 1-2.12-2.12l8.49-8.48"/></svg>`;
+      const splitIconSvg = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>`;
+      const detailIconSvg = (txn.type === 'split' ? splitIconSvg : '') + (txn.note ? noteIconSvg : '') + (txn.hasReceipt ? clipIconSvg : '');
+      const detailLabel = txn.type === 'split' ? 'View split breakdown' : 'View note/receipt';
+      const detailBtn = hasDetail ? `<button class="row-detail-btn" onclick="toggleDetailRow(event, '${txn.id}')" title="${detailLabel}" aria-label="${detailLabel}">${detailIconSvg}</button>` : '';
+
+      return `
+        <tr id="txn-row-${txn.id}">
+          <td class="col-date"><span class="date-full">${txn.date}</span><span class="date-short">${txn.date.slice(0,5)}</span></td>
+          <td class="col-payee" title="${escapeHtml(txn.payee)}"><div class="payee-cell-inner"><span class="payee-text">${escapeHtml(txn.payee)}${accountBadge}</span>${detailBtn}</div></td>
+          <td class="col-category">${catName}</td>
+          <td class="col-amount">${amountHtml}</td>
+          <td class="${runBal < 0 ? 'col-running bal-neg' : 'col-running'}">${(txn.type === 'funding' || txn.type === 'envelope-transfer') ? '—' : (runBal < 0 ? '-' : '') + '$' + Math.abs(runBal).toFixed(2)}</td>
+          <td class="action-cell" style="white-space:nowrap; width:80px;">
+            ${(txn.type === 'envelope-transfer' || txn.type === 'split') ? '' : `<button class="edit-btn" onclick="openEditRow('${txn.id}')" title="Edit Transaction">✎</button>`}
+            <button class="delete-btn" onclick="deleteTransaction('${txn.id}')" title="Delete Transaction">✕</button>
+          </td>
+        </tr>
+        <tr id="edit-row-${txn.id}" class="edit-row" style="display:none;">
+          <td colspan="6">
+            <div class="edit-row-inner">
+              <input type="date" id="edit-date-${txn.id}" value="${txn.dateISO || ''}" aria-label="Date">
+              <input type="text" id="edit-payee-${txn.id}" list="payee-list" value="${escapeHtml(txn.payee)}" placeholder="Payee" aria-label="Payee">
+              <select id="edit-type-${txn.id}" onchange="editTypeChange('${txn.id}')" aria-label="Type">
+                <option value="expense" ${expenseOption}>Expense</option>
+                <option value="income" ${incomeOption}>Income</option>
+                <option value="funding" ${fundingOption}>Funding</option>
+                <option value="cc-payment" ${txn.type==='cc-payment'?'selected':''}>CC Payment</option>
+                <option value="cc-cashback" ${txn.type==='cc-cashback'?'selected':''}>CC Cash Back</option>
+                <option value="transfer" ${txn.type==='transfer'?'selected':''}>Transfer to Savings</option>
+                              </select>
+              <select id="edit-account-${txn.id}" ${txn.type==='income'?'disabled':''} aria-label="Account">
+                <option value="checking" ${chkSelected}>Checking</option>
+                <option value="cc" ${ccSelected}>Credit Card</option>
+              </select>
+              <input type="number" id="edit-amount-${txn.id}" value="${txn.amount}" step="0.01" min="0.01" aria-label="Amount">
+              <span id="edit-cat-wrap-${txn.id}">${catSelect}</span>
+              <button class="edit-save-btn" onclick="saveEdit('${txn.id}')">Save</button>
+              <button class="edit-cancel-btn" onclick="closeEditRow('${txn.id}')">Cancel</button>
+              <div style="flex-basis:100%; display:flex; flex-direction:column; gap:6px; margin-top:4px;">
+                <textarea id="edit-note-${txn.id}" placeholder="Note (optional)" aria-label="Note" style="width:100%; min-height:36px; font-size:0.85rem; padding:6px 8px; border:1px solid var(--border); border-radius:8px; font-family:inherit;">${escapeHtml(txn.note)}</textarea>
+                <div class="receipt-upload-row">
+                  <label class="receipt-upload-btn" for="edit-receipt-input-${txn.id}"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px; margin-right:3px;"><path d="M21.44 11.05l-9.19 9.19a5.5 5.5 0 0 1-7.78-7.78l9.19-9.19a3.5 3.5 0 0 1 4.95 4.95l-9.2 9.19a1.5 1.5 0 0 1-2.12-2.12l8.49-8.48"/></svg>${txn.hasReceipt ? 'Replace' : 'Add'} Photo</label>
+                  <input type="file" id="edit-receipt-input-${txn.id}" accept="image/*" style="display:none;" onchange="editReceiptChange('${txn.id}')">
+                  <div id="edit-receipt-preview-${txn.id}"></div>
+                </div>
+              </div>
+            </div>
+          </td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  const _editReceiptState = {};
+
+  window.openEditRow = function(id) {
+    // Close any other open edit rows
+    document.querySelectorAll('.edit-row').forEach(r => r.style.display = 'none');
+    const row = document.getElementById('edit-row-' + id);
+    if (row) {
+      row.style.display = '';
+      const dateInput = document.getElementById('edit-date-' + id);
+      if (dateInput) dateInput.focus();
+      const txn = state.ledger.find(t => t.id === id);
+      if (txn && txn.hasReceipt) {
+        const previewEl = document.getElementById('edit-receipt-preview-' + id);
+        if (previewEl) previewEl.innerHTML = '<span class="receipt-hint">Loading current photo…</span>';
+        getReceiptCached(id).then(dataUrl => {
+          if (!document.getElementById('edit-receipt-preview-' + id)) return; // row closed before fetch finished
+          _editReceiptState[id] = dataUrl;
+          renderReceiptPreview('edit-receipt-preview-' + id, dataUrl, () => removeEditReceipt(id));
+        });
+      } else {
+        _editReceiptState[id] = null;
+        renderReceiptPreview('edit-receipt-preview-' + id, null);
+      }
+    }
+  };
+
+  window.editReceiptChange = function(id) {
+    const input = document.getElementById('edit-receipt-input-' + id);
+    const file = input.files[0];
+    if (!file) return;
+    compressImageFile(file, (dataUrl) => {
+      _editReceiptState[id] = dataUrl;
+      renderReceiptPreview('edit-receipt-preview-' + id, dataUrl, () => removeEditReceipt(id));
+    });
+  };
+
+  window.removeEditReceipt = function(id) {
+    _editReceiptState[id] = null;
+    document.getElementById('edit-receipt-input-' + id).value = '';
+    renderReceiptPreview('edit-receipt-preview-' + id, null);
+  };
+
+  // Tracks the button that opened the currently-visible popover, so focus
+  // can be returned to it on close instead of being dropped to <body>.
+  let _detailPopoverAnchor = null;
+
+  function closeDetailPopover() {
+    const existing = document.getElementById('detail-popover');
+    if (existing) existing.remove();
+    const backdrop = document.getElementById('detail-popover-backdrop');
+    if (backdrop) backdrop.remove();
+    if (_detailPopoverAnchor) {
+      _detailPopoverAnchor.focus();
+      _detailPopoverAnchor = null;
+    }
+  }
+
+  window.toggleDetailRow = function(evt, id) {
+    const anchor = evt.currentTarget;
+    const existing = document.getElementById('detail-popover');
+    // If this same icon's popover is already open, treat the click as "close".
+    if (existing && existing.dataset.txnId === id) {
+      closeDetailPopover();
+      return;
+    }
+    _detailPopoverAnchor = null; // avoid re-focusing the previous anchor while opening a new popover
+    closeDetailPopover();
+    _detailPopoverAnchor = anchor;
+
+    const txn = state.ledger.find(t => t.id === id);
+    if (!txn) return;
+
+    const rect = anchor.getBoundingClientRect();
+
+    const backdrop = document.createElement('div');
+    backdrop.id = 'detail-popover-backdrop';
+    backdrop.className = 'detail-popover-backdrop';
+    backdrop.addEventListener('click', closeDetailPopover);
+    document.body.appendChild(backdrop);
+
+    const pop = document.createElement('div');
+    pop.id = 'detail-popover';
+    pop.className = 'detail-popover';
+    pop.dataset.txnId = id;
+    pop.setAttribute('role', 'dialog');
+    pop.setAttribute('aria-label', 'Transaction detail');
+    pop.tabIndex = -1;
+    pop.innerHTML = (txn.type === 'split' ? `<div class="detail-popover-split">` + (txn.splits || []).map(s => {
+        const name = state.envelopes[s.categoryId] ? escapeHtml(state.envelopes[s.categoryId].name) : 'Deleted Envelope';
+        return `<div class="detail-split-row"><span>${name}</span><span>$${s.amount.toFixed(2)}</span></div>`;
+      }).join('') + `</div>` : '')
+      + (txn.note ? `<div class="detail-popover-note">${escapeHtml(txn.note)}</div>` : '')
+      + (txn.hasReceipt ? `<div id="detail-popover-receipt" class="detail-receipt-loading">Loading receipt…</div>` : '');
+    // Stop clicks inside the popover from bubbling to the backdrop and closing it.
+    pop.addEventListener('click', e => e.stopPropagation());
+    document.body.appendChild(pop);
+    pop.focus();
+
+    // Position below the icon by default; flip above if it would run off the
+    // bottom of the screen, and keep it from overflowing the right edge.
+    const popRect = pop.getBoundingClientRect();
+    let top = rect.bottom + POPOVER_GAP;
+    if (top + popRect.height > window.innerHeight - POPOVER_VIEWPORT_MARGIN) top = rect.top - popRect.height - POPOVER_GAP;
+    let left = rect.left;
+    if (left + popRect.width > window.innerWidth - POPOVER_VIEWPORT_MARGIN) left = window.innerWidth - popRect.width - POPOVER_VIEWPORT_MARGIN;
+    if (left < POPOVER_VIEWPORT_MARGIN) left = POPOVER_VIEWPORT_MARGIN;
+    pop.style.top = Math.max(POPOVER_VIEWPORT_MARGIN, top) + 'px';
+    pop.style.left = left + 'px';
+
+    if (txn.hasReceipt) {
+      getReceiptCached(id).then(dataUrl => {
+        const target = document.getElementById('detail-popover-receipt');
+        if (!target) return; // popover was closed before the fetch finished
+        if (dataUrl) {
+          target.outerHTML = `<img class="detail-receipt-thumb" src="${dataUrl}" onclick="openLightbox('${dataUrl}')" title="View full receipt" alt="Receipt photo — click to view full size">`;
+        } else {
+          target.textContent = 'Receipt photo could not be loaded.';
+        }
+      });
+    }
+  };
+
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeDetailPopover(); });
+  // Any ledger re-render (filters, edits, scrolling the panel out of view, etc.)
+  // invalidates the popover's anchor position, so just close it rather than
+  // leave it floating over the wrong row.
+  window.addEventListener('scroll', closeDetailPopover, true);
+
+  window.closeEditRow = function(id) {
+    const row = document.getElementById('edit-row-' + id);
+    if (row) row.style.display = 'none';
+    delete _editReceiptState[id];
+  };
+
+  window.editTypeChange = function(id) {
+    const type = document.getElementById('edit-type-' + id).value;
+    const accountSel = document.getElementById('edit-account-' + id);
+    const catWrap = document.getElementById('edit-cat-wrap-' + id);
+    if (type === 'income') {
+      accountSel.value = 'checking';
+      accountSel.disabled = true;
+      catWrap.innerHTML = '<select disabled><option>Left to Assign</option></select>';
+    } else if (type === 'cc-payment') {
+      accountSel.value = 'checking';
+      accountSel.disabled = true;
+      catWrap.innerHTML = '<select disabled><option>N/A — CC Payment</option></select>';
+    } else if (type === 'cc-cashback') {
+      accountSel.value = 'cc';
+      accountSel.disabled = true;
+      catWrap.innerHTML = '<select disabled><option>N/A — Cash Back</option></select>';
+    } else if (type === 'transfer') {
+      accountSel.value = 'checking';
+      accountSel.disabled = true;
+      const envOptions = Object.entries(state.envelopes).map(([eid, env]) => `<option value="${eid}">${escapeHtml(env.name)}</option>`).join('');
+      catWrap.innerHTML = `<select id="edit-cat-${id}">${envOptions}</select>`;
+    } else {
+      accountSel.disabled = false;
+      const envOptions = Object.entries(state.envelopes)
+        .map(([eid, env]) => `<option value="${eid}">${escapeHtml(env.name)}</option>`)
+        .join('');
+      catWrap.innerHTML = `<select id="edit-cat-${id}">${envOptions}</select>`;
+    }
+  };
+
+  window.saveEdit = function(id) {
+    const txnIndex = state.ledger.findIndex(t => t.id === id);
+    if (txnIndex === -1) return;
+    const txn = state.ledger[txnIndex];
+
+    const dateISO = document.getElementById('edit-date-' + id).value;
+    const payee = document.getElementById('edit-payee-' + id).value.trim();
+    const type = document.getElementById('edit-type-' + id).value;
+    const account = document.getElementById('edit-account-' + id).value;
+    const amount = roundMoney(parseFloat(document.getElementById('edit-amount-' + id).value));
+    const catEl = document.getElementById('edit-cat-' + id);
+    const categoryId = (type === 'income') ? 'unallocated' : (type === 'cc-payment' || type === 'cc-cashback') ? 'none' : (catEl ? catEl.value : txn.categoryId);
+
+    if (!dateISO || !payee || isNaN(amount) || amount <= 0) {
+      document.getElementById('edit-amount-' + id).style.borderColor = 'var(--danger)';
+      return;
+    }
+
+    // Funding edits must not exceed what's actually available in Left to Assign.
+    // If this txn was already type 'funding', its old amount is still counted as
+    // "spent" from the pool by computeUnallocated() at this point, so add it back
+    // before checking the new amount.
+    if (type === 'funding') {
+      const oldFundingAmt = (txn.type === 'funding') ? txn.amount : 0;
+      const availableForThis = roundMoney(computeUnallocated() + oldFundingAmt);
+      if (amount > availableForThis) {
+        const amtInput = document.getElementById('edit-amount-' + id);
+        amtInput.style.borderColor = 'var(--danger)';
+        amtInput.title = `Only $${availableForThis.toFixed(2)} available in Left to Assign`;
+        amtInput.focus();
+        return;
+      }
+    }
+
+    // ── Reverse old financial impact ──
+    if (txn.type === 'expense' && state.envelopes[txn.categoryId]) {
+      state.envelopes[txn.categoryId].balance = roundMoney(state.envelopes[txn.categoryId].balance + txn.amount);
+    } else if (txn.type === 'funding' && state.envelopes[txn.categoryId]) {
+      state.envelopes[txn.categoryId].balance = roundMoney(state.envelopes[txn.categoryId].balance - txn.amount);
+    } else if (txn.type === 'transfer' && state.envelopes[txn.categoryId]) {
+      state.envelopes[txn.categoryId].balance = roundMoney(state.envelopes[txn.categoryId].balance + txn.amount);
+    }
+    // cc-payment and income: no envelope impact to reverse
+
+    // ── Apply new financial impact ──
+    if (type === 'expense' && state.envelopes[categoryId]) {
+      state.envelopes[categoryId].balance = roundMoney(state.envelopes[categoryId].balance - amount);
+    } else if (type === 'funding' && state.envelopes[categoryId]) {
+      state.envelopes[categoryId].balance = roundMoney(state.envelopes[categoryId].balance + amount);
+    } else if (type === 'transfer' && state.envelopes[categoryId]) {
+      state.envelopes[categoryId].balance = roundMoney(state.envelopes[categoryId].balance - amount);
+    }
+    // cc-payment: recon recalculates from ledger automatically
+
+    // ── Update the transaction ──
+    const formattedDate = formatDate(dateISO);
+    const note = document.getElementById('edit-note-' + id).value.trim();
+    // _editReceiptState[id] holds: a data URL (new/replacement photo), null
+    // (removed, or none was ever set), or is absent if the user never touched
+    // the receipt control this session — in which case leave it alone.
+    const receiptTouched = Object.prototype.hasOwnProperty.call(_editReceiptState, id);
+    const newReceiptDataUrl = receiptTouched ? _editReceiptState[id] : undefined;
+    const hasReceipt = receiptTouched ? !!newReceiptDataUrl : !!txn.hasReceipt;
+
+    state.ledger[txnIndex] = {
+      ...txn,
+      date: formattedDate,
+      dateISO,
+      payee,
+      type,
+      account,
+      amount,
+      categoryId,
+      note: note || undefined,
+      hasReceipt
+    };
+
+    if (receiptTouched) {
+      if (newReceiptDataUrl) {
+        _receiptCache.set(id, newReceiptDataUrl);
+        saveReceiptToDB(id, newReceiptDataUrl).catch(() => {
+          alert('The transaction saved, but the new receipt photo could not be stored. Try re-attaching it.');
+        });
+      } else {
+        _receiptCache.delete(id);
+        deleteReceiptFromDB(id).catch(() => {});
+      }
+    }
+
+    delete _editReceiptState[id];
+    saveState();
+    render();
+  };
+
+  // Escape key closes edit rows
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      document.querySelectorAll('.edit-row').forEach(r => r.style.display = 'none');
+    }
+  });
+
+  window.openEnvEdit = function(id) {
+    // Close any open fund or edit rows first
+    document.querySelectorAll('.fund-input-row').forEach(el => el.style.display = 'none');
+    const row = document.getElementById('env-edit-row-' + id);
+    if (row) {
+      row.style.display = 'flex';
+      const nameInput = document.getElementById('env-edit-name-' + id);
+      if (nameInput) { nameInput.select(); nameInput.focus(); }
+    }
+  };
+
+  window.closeEnvEdit = function(id) {
+    const row = document.getElementById('env-edit-row-' + id);
+    if (row) row.style.display = 'none';
+  };
+
+  window.saveEnvEdit = function(id) {
+    const nameEl = document.getElementById('env-edit-name-' + id);
+    const goalEl = document.getElementById('env-edit-goal-' + id);
+    const name = nameEl.value.trim();
+    const goal = roundMoney(parseFloat(goalEl.value) || 0);
+    if (!name) { nameEl.style.borderColor = 'var(--danger)'; nameEl.focus(); return; }
+    nameEl.style.borderColor = '';
+    state.envelopes[id].name = name;
+    state.envelopes[id].goal = goal;
+    saveState();
+    render();
+  };
+
+  function renderDropdown() {
+    if(txnTypeSelect.value === 'income' || txnTypeSelect.value === 'cc-payment' || txnTypeSelect.value === 'cc-cashback') return;
+    
+    const currentVal = txnEnvelopeSelect.value;
+    txnEnvelopeSelect.innerHTML = '<option value="" disabled selected>Select Envelope</option>' +
+      Object.entries(state.envelopes).map(([id, env]) =>
+        `<option value="${id}">${escapeHtml(env.name)}</option>`
+      ).join('');
+      
+    if(state.envelopes[currentVal]) {
+      txnEnvelopeSelect.value = currentVal;
+    }
+  }
+
+  // Enter key on fund inputs
+  document.getElementById('envelope-list').addEventListener('keydown', (e) => {
+    // Fund input keys
+    if (e.target.matches('input[id^="fund-amount-"]')) {
+      const id = e.target.id.replace('fund-amount-', '');
+      if (e.key === 'Enter') { e.preventDefault(); confirmFund(id); }
+      if (e.key === 'Escape') hideFundInput(id);
+    }
+    // Envelope edit input keys
+    if (e.target.matches('input[id^="env-edit-"]')) {
+      const id = e.target.id.replace(/env-edit-(name|goal)-/, '');
+      if (e.key === 'Enter') { e.preventDefault(); saveEnvEdit(id); }
+      if (e.key === 'Escape') { e.preventDefault(); closeEnvEdit(id); }
+    }
+  });
+
+  // ── REPORTS ──
+
+  function buildMonthOptions() {
+    const keys = new Set();
+    state.ledger.forEach(txn => {
+      if (txn.dateISO) keys.add(getMonthKey(txn.dateISO));
+    });
+    const sorted = [...keys].sort().reverse();
+    const sel = document.getElementById('report-month');
+    const current = sel.value;
+    sel.innerHTML = '<option value="">All Time</option>' +
+      sorted.map(k => `<option value="${k}"${k === current ? ' selected' : ''}>${formatMonthKey(k)}</option>`).join('');
+  }
+
+  function getReportExpenseLines(monthKey) {
+    const lines = [];
+    state.ledger.forEach(txn => {
+      if (monthKey && getMonthKey(txn.dateISO) !== monthKey) return;
+      if (txn.type === 'expense') {
+        lines.push({ categoryId: txn.categoryId, amount: txn.amount });
+      } else if (txn.type === 'split') {
+        (txn.splits || []).forEach(s => lines.push({ categoryId: s.categoryId, amount: s.amount }));
+      }
+    });
+    return lines;
+  }
+
+  function renderSpendingChart(monthKey) {
+    const expenses = getReportExpenseLines(monthKey);
+    const el = document.getElementById('spending-chart');
+
+    if (expenses.length === 0) {
+      el.innerHTML = '<div class="report-empty">No expenses for this period.</div>';
+      return;
+    }
+
+    // Group by envelope
+    const totals = {};
+    expenses.forEach(line => {
+      const name = (line.categoryId !== 'unallocated' && state.envelopes[line.categoryId])
+        ? state.envelopes[line.categoryId].name
+        : 'Uncategorized';
+      totals[name] = roundMoney((totals[name] || 0) + line.amount);
+    });
+
+    const sorted = Object.entries(totals).sort((a, b) => b[1] - a[1]);
+    const max = sorted[0][1];
+
+    const total = roundMoney(sorted.reduce(function(s, pair) { return s + pair[1]; }, 0));
+    let spendHtml = '';
+    sorted.forEach(function(pair) {
+      const name = pair[0]; const amt = pair[1];
+      const pct = max > 0 ? (amt / max * 100).toFixed(1) : 0;
+      const sharePct = total > 0 ? Math.round(amt / total * 100) : 0;
+      spendHtml += '<div class="bar-row">'
+        + '<span class="bar-label" title="' + escapeHtml(name) + '">' + escapeHtml(name) + '</span>'
+        + '<div class="bar-track"><div class="bar-fill" style="width:' + pct + '%"></div></div>'
+        + '<span class="bar-amount">$' + amt.toFixed(2) + ' <span style="color:var(--text-muted);font-weight:400;">' + sharePct + '%</span></span>'
+        + '</div>';
+    });
+    spendHtml += '<div class="bar-row" style="margin-top:8px;border-top:1px solid var(--border);padding-top:8px;">'
+      + '<span class="bar-label" style="font-weight:600;color:var(--text-main)">Total</span>'
+      + '<div class="bar-track"></div>'
+      + '<span class="bar-amount" style="color:var(--danger);font-weight:700;">$' + total.toFixed(2) + '</span>'
+      + '</div>';
+    el.innerHTML = spendHtml;
+  }
+
+  let momRangeMonths = 6; // null = all time
+
+  function renderMomChart() {
+    const el = document.getElementById('mom-chart');
+    const months = {};
+
+    state.ledger.forEach(txn => {
+      if (txn.type === 'funding') return;
+      const key = getMonthKey(txn.dateISO);
+      if (!key) return;
+      if (!months[key]) months[key] = { income: 0, expenses: 0 };
+      if (txn.type === 'income') months[key].income = roundMoney(months[key].income + txn.amount);
+      if (txn.type === 'expense' || txn.type === 'split') months[key].expenses = roundMoney(months[key].expenses + txn.amount);
+    });
+
+    // Newest month first. When a range is set, take the N most recent months;
+    // "All time" (momRangeMonths === null) keeps every month on record.
+    let sorted = Object.entries(months).sort((a, b) => b[0].localeCompare(a[0]));
+    if (momRangeMonths) sorted = sorted.slice(0, momRangeMonths);
+
+    if (sorted.length === 0) {
+      el.innerHTML = '<div class="report-empty">No data yet.</div>';
+      return;
+    }
+
+    let rows = '';
+    sorted.forEach(function(pair) {
+      const key = pair[0]; const data = pair[1];
+      const net = roundMoney(data.income - data.expenses);
+      const netClass = net >= 0 ? 'net-pos' : 'net-neg';
+      const netSign = net >= 0 ? '+' : '';
+      rows += '<tr>'
+        + '<td>' + formatMonthKey(key) + '</td>'
+        + '<td style="color:var(--success)">$' + data.income.toFixed(2) + '</td>'
+        + '<td style="color:var(--danger)">$' + data.expenses.toFixed(2) + '</td>'
+        + '<td class="' + netClass + '">' + netSign + '$' + net.toFixed(2) + '</td>'
+        + '</tr>';
+    });
+    el.innerHTML = '<table class="month-table">'
+      + '<thead><tr><th>Month</th><th>Income</th><th>Spent</th><th>Net</th></tr></thead>'
+      + '<tbody>' + rows + '</tbody>'
+      + '</table>';
+  }
+
+  // ── SAVINGS RATE ──
+  function renderSavingsRate(monthKey) {
+    const el = document.getElementById('savings-rate-chart');
+    let income = 0, expenses = 0, transfers = 0;
+    state.ledger.forEach(txn => {
+      if (monthKey && getMonthKey(txn.dateISO) !== monthKey) return;
+      if (txn.type === 'income') income = roundMoney(income + txn.amount);
+      if (txn.type === 'expense' || txn.type === 'split') expenses = roundMoney(expenses + txn.amount);
+      if (txn.type === 'transfer') transfers = roundMoney(transfers + txn.amount);
+    });
+    if (income === 0) { el.innerHTML = '<div class="report-empty">No income data for this period.</div>'; return; }
+    const saved = roundMoney(income - expenses);
+    const rate = Math.round((saved / income) * 100);
+    const color = rate >= SAVINGS_RATE_GOOD_PCT ? 'var(--success)' : rate >= SAVINGS_RATE_OK_PCT ? 'var(--accent)' : 'var(--danger)';
+    const transferHtml = transfers > 0 ? '<div class="savings-rate-sub">Transferred to Savings: $' + transfers.toFixed(2) + '</div>' : '';
+    el.innerHTML = '<div class="savings-rate-display">'
+      + '<div class="savings-rate-pct" style="color:' + color + '">' + rate + '%</div>'
+      + '<div class="savings-rate-label">of income not spent</div>'
+      + '<div class="savings-rate-sub">Income: $' + income.toFixed(2) + ' &nbsp;|&nbsp; Spent: $' + expenses.toFixed(2) + '</div>'
+      + transferHtml
+      + '</div>';
+  }
+
+  // ── CC VS CHECKING SPLIT ──
+  function renderCCSplit(monthKey) {
+    const el = document.getElementById('cc-split-chart');
+    let checking = 0, cc = 0;
+    state.ledger.forEach(txn => {
+      if (txn.type !== 'expense' && txn.type !== 'split') return;
+      if (monthKey && getMonthKey(txn.dateISO) !== monthKey) return;
+      if (txn.account === 'cc') cc = roundMoney(cc + txn.amount);
+      else checking = roundMoney(checking + txn.amount);
+    });
+    const total = roundMoney(checking + cc);
+    if (total === 0) { el.innerHTML = '<div class="report-empty">No expenses for this period.</div>'; return; }
+    const ccPct = total > 0 ? Math.round(cc/total*100) : 0;
+    const chkPct = 100 - ccPct;
+    // Bar
+    const barHtml = `<div class="bar-track" style="height:18px;margin-bottom:12px;">
+      <div class="bar-fill" style="width:${chkPct}%;background:var(--primary);display:inline-block;height:100%;"></div>
+      <div style="width:${ccPct}%;background:var(--accent);display:inline-block;height:100%;"></div>
+    </div>`;
+    el.innerHTML = barHtml + `<div class="split-row">
+      <div class="split-card">
+        <div class="split-label">Checking</div>
+        <div class="split-amount" style="color:var(--primary)">$${checking.toFixed(2)}</div>
+        <div class="split-pct">${chkPct}%</div>
+      </div>
+      <div class="split-card">
+        <div class="split-label">Credit Card</div>
+        <div class="split-amount" style="color:var(--accent)">$${cc.toFixed(2)}</div>
+        <div class="split-pct">${ccPct}%</div>
+      </div>
+    </div>`;
+  }
+
+  // ── ENVELOPE HEALTH ──
+  function renderEnvelopeHealth() {
+    const el = document.getElementById('envelope-health-chart');
+    const envs = Object.values(state.envelopes);
+    if (!envs.length) { el.innerHTML = '<div class="report-empty">No envelopes yet.</div>'; return; }
+    const sorted = [...envs].sort((a,b) => {
+      // Sort by health: negative first, then by % of goal
+      const aScore = a.goal > 0 ? a.balance/a.goal : (a.balance >= 0 ? 1 : -1);
+      const bScore = b.goal > 0 ? b.balance/b.goal : (b.balance >= 0 ? 1 : -1);
+      return aScore - bScore;
+    });
+    let healthHtml = '';
+    sorted.forEach(function(env) {
+      let color, dot, statusLabel;
+      if (env.balance < 0) { color = 'var(--danger)'; dot = 'var(--danger)'; statusLabel = 'Over'; }
+      else if (env.goal > 0 && env.balance < env.goal * ENVELOPE_HEALTH_WARN_RATIO) { color = 'var(--accent)'; dot = 'var(--accent)'; statusLabel = 'Low'; }
+      else { color = 'var(--success)'; dot = 'var(--success)'; statusLabel = 'On track'; }
+      const goalStr = env.goal > 0 ? 'Goal: $' + env.goal.toFixed(2) : 'No goal';
+      healthHtml += '<div class="health-row">'
+        + '<div class="health-dot" style="background:' + dot + '" title="' + statusLabel + '" aria-hidden="true"></div>'
+        + '<span class="health-name">' + escapeHtml(env.name) + '<span class="health-status-label" style="color:' + color + '"> (' + statusLabel + ')</span></span>'
+        + '<span class="health-balance" style="color:' + color + '">$' + env.balance.toFixed(2) + '</span>'
+        + '<span class="health-goal">' + goalStr + '</span>'
+        + '</div>';
+    });
+    el.innerHTML = healthHtml;
+  }
+
+  // ── RECONCILE: CLEAR / UNCLEAR TRANSACTION LISTS ──
+  const _clearedSectionOpen = { checking: false, cc: false };
+
+  function reconTxnRowHtml(t, checked) {
+    const isCredit = t.type === 'income' || t.type === 'cc-cashback';
+    const amtColor = isCredit ? 'var(--success)' : 'var(--danger)';
+    const sign = isCredit ? '+' : '-';
+    const clearLabel = 'Mark cleared: ' + (t.payee || 'transaction') + ' ' + sign + '$' + t.amount.toFixed(2) + ' on ' + t.date;
+    return '<div class="uncleared-row">'
+      + '<input type="checkbox" class="cleared-checkbox" aria-label="' + escapeHtml(clearLabel) + '" onchange="toggleClear(\'' + t.id + '\')" ' + (checked ? 'checked' : '') + '>'
+      + '<span class="uncleared-date">' + t.date.slice(0,5) + '</span>'
+      + '<span class="uncleared-payee">' + escapeHtml(t.payee) + '</span>'
+      + '<span class="uncleared-amount" style="color:' + amtColor + '">' + sign + '$' + t.amount.toFixed(2) + '</span>'
+      + '</div>';
+  }
+
+  function renderReconLists() {
+    const relevant = state.ledger.filter(function(t) { return t.type !== 'funding' && t.type !== 'envelope-transfer'; });
+    ['checking', 'cc'].forEach(function(acct) {
+      const txns = relevant.filter(function(t) { return (t.account === 'cc' ? 'cc' : 'checking') === acct; });
+      const uncleared = txns.filter(function(t) { return !t.cleared; })
+        .sort(function(a,b) { return (b.dateISO||b.date).localeCompare(a.dateISO||a.date); });
+      const cleared = txns.filter(function(t) { return t.cleared; })
+        .sort(function(a,b) { return (b.dateISO||b.date).localeCompare(a.dateISO||a.date); })
+        .slice(0, RECENTLY_CLEARED_LIMIT);
+
+      const unclearedEl = document.getElementById('uncleared-list-' + acct);
+      unclearedEl.innerHTML = uncleared.length
+        ? uncleared.map(function(t) { return reconTxnRowHtml(t, false); }).join('')
+        : '<div class="recon-empty-msg"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px; margin-right:4px;"><circle cx="12" cy="12" r="9"/><path d="M8.5 12.5l2.5 2.5 5-5"/></svg>All cleared!</div>';
+
+      const toggleBtn = document.getElementById('cleared-toggle-' + acct);
+      const clearedListEl = document.getElementById('cleared-list-' + acct);
+      toggleBtn.lastChild.textContent = ' Recently Cleared (' + cleared.length + ')';
+      clearedListEl.innerHTML = cleared.length
+        ? cleared.map(function(t) { return reconTxnRowHtml(t, true); }).join('')
+        : '<div class="recon-empty-msg">No cleared transactions yet.</div>';
+
+      // Preserve open/closed state across re-renders
+      clearedListEl.style.display = _clearedSectionOpen[acct] ? '' : 'none';
+      toggleBtn.classList.toggle('open', _clearedSectionOpen[acct]);
+    });
+  }
+
+  window.toggleClearedSection = function(acct) {
+    _clearedSectionOpen[acct] = !_clearedSectionOpen[acct];
+    const listEl = document.getElementById('cleared-list-' + acct);
+    const toggleBtn = document.getElementById('cleared-toggle-' + acct);
+    listEl.style.display = _clearedSectionOpen[acct] ? '' : 'none';
+    toggleBtn.classList.toggle('open', _clearedSectionOpen[acct]);
+  };
+
+  function renderReports() {
+    buildMonthOptions();
+    // Default spending chart to current month if no selection
+    const reportMonthEl = document.getElementById('report-month');
+    if (!reportMonthEl.value) {
+      reportMonthEl.value = _curMonth;
+    }
+    const monthKey = reportMonthEl.value;
+    renderSpendingChart(monthKey);
+    renderMomChart();
+    renderSavingsRate(monthKey);
+    renderCCSplit(monthKey);
+    renderEnvelopeHealth();
+  }
+
+  document.getElementById('report-month').addEventListener('change', () => {
+    const monthKey = document.getElementById('report-month').value;
+    renderSpendingChart(monthKey);
+    renderSavingsRate(monthKey);
+    renderCCSplit(monthKey);
+  });
+
+  document.getElementById('mom-range').addEventListener('change', (e) => {
+    momRangeMonths = e.target.value === 'all' ? null : parseInt(e.target.value, 10);
+    renderMomChart();
+  });
+
+  document.getElementById('csv-export-btn').addEventListener('click', () => {
+    const monthKey = document.getElementById('report-month').value;
+    const txns = state.ledger.filter(txn => {
+      if (monthKey && getMonthKey(txn.dateISO) !== monthKey) return false;
+      return true;
+    });
+
+    const header = ['Date', 'Payee', 'Type', 'Account', 'Category', 'Amount', 'Cleared', 'Note'];
+    const rows = [];
+    txns.forEach(txn => {
+      if (txn.type === 'split') {
+        (txn.splits || []).forEach(s => {
+          const cat = state.envelopes[s.categoryId] ? state.envelopes[s.categoryId].name : 'Deleted Envelope';
+          rows.push([
+            txn.date,
+            csvField(txn.payee),
+            'split',
+            txn.account || 'checking',
+            csvField(cat),
+            (-s.amount).toFixed(2),
+            txn.cleared ? 'yes' : 'no',
+            csvField(txn.note)
+          ].join(','));
+        });
+        return;
+      }
+      const cat = txn.type === 'transfer' ? (state.envelopes[txn.categoryId] ? state.envelopes[txn.categoryId].name : 'Transfer')
+        : txn.type === 'envelope-transfer' ? `${state.envelopes[txn.categoryId] ? state.envelopes[txn.categoryId].name : 'Deleted Envelope'} -> ${state.envelopes[txn.toEnvelopeId] ? state.envelopes[txn.toEnvelopeId].name : 'Deleted Envelope'}`
+        : txn.type === 'cc-cashback' ? 'CC Cash Back'
+        : txn.type === 'cc-payment' ? 'CC Payment'
+        : txn.categoryId === 'unallocated' ? 'Left to Assign'
+        : txn.categoryId === 'none' ? 'CC Payment'
+        : state.envelopes[txn.categoryId] ? state.envelopes[txn.categoryId].name
+        : 'Deleted Envelope';
+      const amt = txn.type === 'expense' ? -txn.amount : txn.amount;
+      rows.push([
+        txn.date,
+        csvField(txn.payee),
+        txn.type,
+        txn.account || 'checking',
+        csvField(cat),
+        amt.toFixed(2),
+        txn.cleared ? 'yes' : 'no',
+        csvField(txn.note)
+      ].join(','));
+    });
+
+    const csv = [header.join(','), ...rows].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const label = monthKey ? formatMonthKey(monthKey).replace(' ', '_') : 'all';
+    a.download = `budget_${label}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+
+  // ── Desktop Tab Navigation ──
+  const desktopPanelMap = {
+    envelopes: document.getElementById('panel-envelopes'),
+    ledger:    document.getElementById('panel-ledger'),
+    recon:     document.getElementById('panel-recon'),
+    reports:   document.getElementById('panel-reports'),
+  };
+
+  function switchDesktopTab(tabName) {
+    Object.entries(desktopPanelMap).forEach(([name, el]) => {
+      if (!el) return;
+      el.classList.toggle('desktop-active', name === tabName);
+    });
+    document.querySelectorAll('.desktop-tab-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.tab === tabName);
+    });
+  }
+
+  document.querySelectorAll('.desktop-tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => switchDesktopTab(btn.dataset.tab));
+  });
+
+  // ── Mobile Tab Navigation ──
+  const tabPanels = {
+    envelopes: document.getElementById('panel-envelopes'),
+    ledger:    document.getElementById('panel-ledger'),
+    recon:     document.getElementById('panel-recon'),
+    reports:   document.getElementById('panel-reports'),
+  };
+
+  function switchTab(tabName) {
+    // Only apply on mobile
+    if (window.innerWidth > MOBILE_BREAKPOINT) return;
+    Object.entries(tabPanels).forEach(([name, el]) => {
+      if (!el) return;
+      el.classList.toggle('mobile-active', name === tabName);
+    });
+    document.querySelectorAll('.mobile-tab-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.tab === tabName);
+    });
+  }
+
+  document.querySelectorAll('.mobile-tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+  });
+
+  // Keep --mobile-tabbar-h in sync with the tab bar's real rendered height
+  // (it varies with env(safe-area-inset-bottom) on notched devices), so
+  // .app-container's bottom clearance never guesses at a flat pixel value.
+  const mobileTabsEl = document.querySelector('.mobile-tabs');
+  if (mobileTabsEl && window.ResizeObserver) {
+    const tabbarObserver = new ResizeObserver(entries => {
+      const h = entries[0].borderBoxSize ? entries[0].borderBoxSize[0].blockSize : entries[0].contentRect.height;
+      if (h > 0) document.documentElement.style.setProperty('--mobile-tabbar-h', h + 'px');
+    });
+    tabbarObserver.observe(mobileTabsEl);
+  }
+
+  // Reset to show all panels on desktop resize
+  window.addEventListener('resize', () => {
+    if (window.innerWidth > MOBILE_BREAKPOINT) {
+      Object.values(tabPanels).forEach(el => { if (el) el.classList.remove('mobile-active'); });
+    } else {
+      // Re-apply active tab on resize back to mobile
+      const activeBtn = document.querySelector('.mobile-tab-btn.active');
+      if (activeBtn) switchTab(activeBtn.dataset.tab);
+    }
+  });
+
+  // Initial render
+  render();
+  renderReports();
+
+  // Move any receipts still stored the old way (inline on the transaction)
+  // into IndexedDB. Silent no-op for anyone who never had inline receipts.
+  migrateInlineReceipts().then(migrated => {
+    if (migrated) { render(); renderReports(); }
+  });
+
+  // ── PWA: Register Service Worker ──
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('budget-sw.js').catch(() => {});
+  }
+
+</script>
+</body>
+</html>
