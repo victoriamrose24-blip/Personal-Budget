@@ -504,6 +504,33 @@
     box-shadow: var(--shadow), 0 8px 20px rgba(0,0,0,0.12);
     padding: 12px 14px;
   }
+
+  /* Payee autocomplete dropdown (custom — see JS comment for why) */
+  .payee-autocomplete {
+    position: fixed;
+    z-index: var(--z-popover);
+    max-height: 200px;
+    overflow-y: auto;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: var(--shadow), 0 8px 20px rgba(0,0,0,0.12);
+    -webkit-overflow-scrolling: touch;
+  }
+  .payee-autocomplete-item {
+    padding: 8px 12px;
+    font-size: 0.9rem;
+    color: var(--text-main);
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .payee-autocomplete-item:hover,
+  .payee-autocomplete-item.active {
+    background: var(--bg-main);
+    color: var(--primary);
+  }
   .detail-popover-note { font-size: 0.85rem; color: var(--text-main); white-space: pre-wrap; margin-bottom: 8px; }
   .detail-popover-split { margin-bottom: 8px; }
   .detail-split-row { display: flex; justify-content: space-between; gap: 12px; font-size: 0.85rem; padding: 3px 0; }
@@ -1064,8 +1091,7 @@
           </div>
           <div class="txn-field txn-field-wide">
             <label class="txn-label" for="txn-payee">Payee / Source</label>
-            <input type="text" id="txn-payee" list="payee-list" placeholder="e.g. Safeway, Skagit Farmers" required autocomplete="off">
-            <datalist id="payee-list"></datalist>
+            <input type="text" id="txn-payee" class="payee-autocomplete-input" placeholder="e.g. Safeway, Skagit Farmers" required autocomplete="off">
           </div>
           <div class="txn-field txn-field-wide">
             <label class="txn-label" for="txn-envelope">Envelope</label>
@@ -1713,15 +1739,12 @@
     if (state.envelopes[toCurrent]) transferToSelect.value = toCurrent;
   }
 
-  // Feeds the "payee-list" datalist so typing a payee/source name suggests
-  // names already used on other transactions — helps keep spellings and
+  // Names already used on other transactions, most-recently-used first, for
+  // the payee autocomplete dropdown — helps keep spellings and
   // capitalization consistent from month to month.
-  function renderPayeeList() {
-    const listEl = document.getElementById('payee-list');
-    if (!listEl) return;
+  function getPayeeNames() {
     const seen = new Set();
     const names = [];
-    // Most recently used first, so common recent payees surface first.
     [...state.ledger]
       .sort((a, b) => (b.dateISO || '').localeCompare(a.dateISO || ''))
       .forEach(txn => {
@@ -1732,8 +1755,98 @@
         seen.add(key);
         names.push(name);
       });
-    listEl.innerHTML = names.map(n => `<option value="${escapeHtml(n)}"></option>`).join('');
+    return names;
   }
+
+  // ── Payee autocomplete dropdown ──
+  // A custom implementation rather than the native <input list="..."> +
+  // <datalist> pairing, because iOS Safari silently ignores <datalist> on
+  // text inputs — the native version would work everywhere except the
+  // platform this app's mobile-web-app meta tags specifically target.
+  let _payeeAcEl = null;
+  let _payeeAcInput = null;
+  let _payeeAcIndex = -1;
+
+  function closePayeeAutocomplete() {
+    if (_payeeAcEl) _payeeAcEl.remove();
+    _payeeAcEl = null;
+    _payeeAcInput = null;
+    _payeeAcIndex = -1;
+  }
+
+  function highlightPayeeAcItem(items) {
+    items.forEach((it, i) => it.classList.toggle('active', i === _payeeAcIndex));
+    if (_payeeAcIndex >= 0) items[_payeeAcIndex].scrollIntoView({ block: 'nearest' });
+  }
+
+  function renderPayeeAutocomplete(input) {
+    const query = input.value.trim().toLowerCase();
+    const matches = getPayeeNames().filter(n => n.toLowerCase().includes(query)).slice(0, 8);
+    // Nothing to suggest, or the only match is exactly what's already typed.
+    if (!matches.length || (matches.length === 1 && matches[0].toLowerCase() === query)) {
+      closePayeeAutocomplete();
+      return;
+    }
+    if (_payeeAcInput !== input) {
+      closePayeeAutocomplete();
+      _payeeAcEl = document.createElement('div');
+      _payeeAcEl.className = 'payee-autocomplete';
+      _payeeAcEl.setAttribute('role', 'listbox');
+      document.body.appendChild(_payeeAcEl);
+      _payeeAcInput = input;
+    }
+    _payeeAcIndex = -1;
+    _payeeAcEl.innerHTML = matches.map(n =>
+      `<div class="payee-autocomplete-item" role="option" data-value="${escapeHtml(n)}">${escapeHtml(n)}</div>`
+    ).join('');
+    const rect = input.getBoundingClientRect();
+    _payeeAcEl.style.left = rect.left + 'px';
+    _payeeAcEl.style.top = (rect.bottom + 2) + 'px';
+    _payeeAcEl.style.width = rect.width + 'px';
+  }
+
+  document.addEventListener('input', (e) => {
+    if (e.target.matches && e.target.matches('.payee-autocomplete-input')) renderPayeeAutocomplete(e.target);
+  });
+  document.addEventListener('focusin', (e) => {
+    if (e.target.matches && e.target.matches('.payee-autocomplete-input')) renderPayeeAutocomplete(e.target);
+  });
+  document.addEventListener('focusout', (e) => {
+    // Delay so a mousedown selection on a suggestion (below) can run first.
+    setTimeout(() => {
+      if (_payeeAcInput && document.activeElement !== _payeeAcInput) closePayeeAutocomplete();
+    }, 150);
+  });
+  document.addEventListener('mousedown', (e) => {
+    const item = e.target.closest && e.target.closest('.payee-autocomplete-item');
+    if (!item || !_payeeAcInput) return;
+    e.preventDefault(); // keep focus on the input instead of losing it to this click
+    _payeeAcInput.value = item.dataset.value;
+    _payeeAcInput.dispatchEvent(new Event('input', { bubbles: true }));
+    closePayeeAutocomplete();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (!_payeeAcEl || e.target !== _payeeAcInput) return;
+    const items = [..._payeeAcEl.querySelectorAll('.payee-autocomplete-item')];
+    if (!items.length) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      _payeeAcIndex = Math.min(_payeeAcIndex + 1, items.length - 1);
+      highlightPayeeAcItem(items);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      _payeeAcIndex = Math.max(_payeeAcIndex - 1, 0);
+      highlightPayeeAcItem(items);
+    } else if (e.key === 'Enter' && _payeeAcIndex >= 0) {
+      e.preventDefault();
+      _payeeAcInput.value = items[_payeeAcIndex].dataset.value;
+      _payeeAcInput.dispatchEvent(new Event('input', { bubbles: true }));
+      closePayeeAutocomplete();
+    } else if (e.key === 'Escape') {
+      closePayeeAutocomplete();
+    }
+  });
+  window.addEventListener('scroll', () => closePayeeAutocomplete(), true);
 
   document.getElementById('envelope-transfer-form').addEventListener('submit', (e) => {
     e.preventDefault();
@@ -1975,7 +2088,7 @@
   });
   document.getElementById('txn-split-rows').addEventListener('input', updateSplitTotal);
 
-  document.getElementById('add-transaction-form').addEventListener('submit', (e) => {
+  document.getElementById('add-transaction-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const type = document.getElementById('txn-type').value;
     const account = document.getElementById('txn-account').value;
@@ -2043,13 +2156,19 @@
       }
     }
 
-    state.ledger.unshift(txn); 
+    state.ledger.unshift(txn);
 
     if (pendingReceiptDataUrl) {
       _receiptCache.set(txn.id, pendingReceiptDataUrl);
-      saveReceiptToDB(txn.id, pendingReceiptDataUrl).catch(() => {
+      try {
+        await saveReceiptToDB(txn.id, pendingReceiptDataUrl);
+      } catch (err) {
+        // The photo never made it to IndexedDB — don't leave hasReceipt:true
+        // pointing at a receipt that doesn't exist.
+        txn.hasReceipt = false;
+        _receiptCache.delete(txn.id);
         alert('The transaction saved, but the receipt photo could not be stored. You can try re-attaching it by editing this transaction.');
-      });
+      }
     }
 
     document.getElementById('txn-amount').value = '';
@@ -2367,7 +2486,6 @@
     renderLedger();
     renderDropdown();
     renderTransferDropdowns();
-    renderPayeeList();
     renderRecon();
     if (typeof renderReports === 'function') renderReports();
     // Dim recon bar until data exists
@@ -2535,7 +2653,7 @@
           <td colspan="6">
             <div class="edit-row-inner">
               <input type="date" id="edit-date-${txn.id}" value="${txn.dateISO || ''}" aria-label="Date">
-              <input type="text" id="edit-payee-${txn.id}" list="payee-list" value="${escapeHtml(txn.payee)}" placeholder="Payee" aria-label="Payee">
+              <input type="text" id="edit-payee-${txn.id}" class="payee-autocomplete-input" value="${escapeHtml(txn.payee)}" placeholder="Payee" aria-label="Payee">
               <select id="edit-type-${txn.id}" onchange="editTypeChange('${txn.id}')" aria-label="Type">
                 <option value="expense" ${expenseOption}>Expense</option>
                 <option value="income" ${incomeOption}>Income</option>
@@ -2731,7 +2849,7 @@
     }
   };
 
-  window.saveEdit = function(id) {
+  window.saveEdit = async function(id) {
     const txnIndex = state.ledger.findIndex(t => t.id === id);
     if (txnIndex === -1) return;
     const txn = state.ledger[txnIndex];
@@ -2811,9 +2929,15 @@
     if (receiptTouched) {
       if (newReceiptDataUrl) {
         _receiptCache.set(id, newReceiptDataUrl);
-        saveReceiptToDB(id, newReceiptDataUrl).catch(() => {
+        try {
+          await saveReceiptToDB(id, newReceiptDataUrl);
+        } catch (err) {
+          // The photo never made it to IndexedDB — don't leave hasReceipt:true
+          // pointing at a receipt that doesn't exist.
+          state.ledger[txnIndex].hasReceipt = false;
+          _receiptCache.delete(id);
           alert('The transaction saved, but the new receipt photo could not be stored. Try re-attaching it.');
-        });
+        }
       } else {
         _receiptCache.delete(id);
         deleteReceiptFromDB(id).catch(() => {});
