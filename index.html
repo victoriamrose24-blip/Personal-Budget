@@ -654,7 +654,7 @@
   .uncleared-row { display: flex; align-items: center; gap: 4px; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 0.88rem; }
   .uncleared-row:last-child { border-bottom: none; }
   .uncleared-date { color: var(--text-muted); min-width: 52px; font-size: 0.8rem; }
-  .uncleared-payee { flex: 1; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin: 0 10px; }
+  .uncleared-payee { flex: 1; min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin: 0 10px; }
   .uncleared-amount { font-weight: 700; min-width: 80px; text-align: right; }
 
   .recon-clear-section { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
@@ -843,7 +843,7 @@
     }
     .recon-panel.mobile-active { display: flex; }
     .recon-cards { flex-direction: column; gap: 12px; }
-    .recon-card { flex: none; }
+    .recon-card { flex: none; width: 100%; min-width: 0; }
     .recon-inputs input { width: 100%; flex: 1; }
 
     /* Panel headers */
@@ -883,7 +883,7 @@
       gap: 6px;
     }
     .env-info { display: flex; flex-direction: row; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: nowrap; }
-    .envelope-name { font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; }
+    .envelope-name { font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; min-width: 0; }
     .envelope-goal { font-size: 0.72rem; white-space: nowrap; flex-shrink: 0; }
     .envelope-actions { display: flex; align-items: center; gap: 5px; width: 100%; }
     .env-balance { font-size: 0.88rem; font-weight: 700; min-width: 60px; }
