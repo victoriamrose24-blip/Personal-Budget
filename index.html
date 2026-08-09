@@ -39,7 +39,7 @@
     --reminder-border: #EAD5CB;
     --reminder-text: #8A4A36;
 
-    /* Mobile panel padding — shared between .panel and .ledger-sticky-top's negated offset */
+    /* Mobile panel padding — shared between .panel and .mobile-sticky-top's negated offset */
     --mobile-panel-pad-y: 12px;
     --mobile-panel-pad-x: 14px;
 
@@ -940,7 +940,7 @@
     .panel.mobile-active { display: flex; }
     .reports-panel {
       display: none;
-      padding: 14px;
+      padding: var(--mobile-panel-pad-y) var(--mobile-panel-pad-x);
       border-radius: 0;
       box-shadow: none;
       border-top: none;
@@ -952,7 +952,7 @@
     .reports-panel.mobile-active { display: flex; }
     .recon-panel {
       display: none;
-      padding: 14px;
+      padding: var(--mobile-panel-pad-y) var(--mobile-panel-pad-x);
       border-radius: 0;
       box-shadow: none;
       border-top: 4px solid var(--success);
@@ -971,10 +971,13 @@
     .panel-header h2 { font-size: var(--text-base); }
     .panel-header { margin-bottom: 6px; padding-bottom: 6px; }
     .panel.mobile-active .panel-header { padding-top: 4px; }
-    /* Sticky wrapper keeps ledger header + filters pinned together as one unit.
-       .panel is its own scroll container (overflow-y:auto), so sticky is relative
-       to the panel itself, not the page — top:0 is correct here. */
-    .panel.mobile-active .ledger-sticky-top {
+    /* Sticky wrapper keeps each panel's header (plus, for Envelopes/Ledger,
+       its quick-add form and filters) pinned while the rest of the panel's
+       content scrolls beneath it. Used by all four panels — Envelopes,
+       Ledger, Reconcile, Reports — so headers behave consistently. Each
+       target panel is its own scroll container (overflow-y:auto), so sticky
+       is relative to the panel itself, not the page — top:0 is correct here. */
+    .mobile-sticky-top {
       position: sticky;
       top: calc(-1 * var(--mobile-panel-pad-y));
       background: var(--bg-card);
@@ -982,9 +985,10 @@
       margin: calc(-1 * var(--mobile-panel-pad-y)) calc(-1 * var(--mobile-panel-pad-x)) 0;
       padding: var(--mobile-panel-pad-y) var(--mobile-panel-pad-x) 6px;
     }
-    /* While the add-transaction form is open, release sticky positioning so the
-       full form is reachable by scrolling instead of being clipped to panel height */
-    .panel.mobile-active .ledger-sticky-top.form-expanded {
+    /* While a panel's expandable form (Add Transaction, Move Money) is open,
+       release sticky positioning so the full form is reachable by scrolling
+       instead of being clipped to panel height. */
+    .mobile-sticky-top.form-expanded {
       position: static;
       margin: calc(-1 * var(--mobile-panel-pad-y)) calc(-1 * var(--mobile-panel-pad-x)) 0;
     }
@@ -1104,43 +1108,45 @@
   <div class="main-content">
     <!-- Envelopes -->
     <div class="panel mobile-active desktop-active" id="panel-envelopes">
-      <div class="panel-header">
-        <h2>Envelopes & Paycheck Goals</h2>
-        <button type="button" id="toggle-transfer-btn" class="secondary-btn" style="font-size:var(--text-sm); padding:6px 12px;">⇄ Move Money</button>
-      </div>
-      <div id="envelope-transfer-wrapper" style="display:none; margin-bottom:12px;">
-        <form id="envelope-transfer-form">
-        <div class="txn-form-grid">
-          <div class="txn-field">
-            <label class="txn-label" for="transfer-from">From Envelope</label>
-            <select id="transfer-from" required>
-              <option value="" disabled selected>Select Envelope</option>
-            </select>
-          </div>
-          <div class="txn-field">
-            <label class="txn-label" for="transfer-to">To Envelope</label>
-            <select id="transfer-to" required>
-              <option value="" disabled selected>Select Envelope</option>
-            </select>
-          </div>
-          <div class="txn-field">
-            <label class="txn-label" for="transfer-amount">Amount</label>
-            <input type="number" id="transfer-amount" placeholder="0.00" step="0.01" min="0.01" required>
-          </div>
-          <div class="txn-field txn-field-wide">
-            <label class="txn-label" for="transfer-note">Note (optional)</label>
-            <input type="text" id="transfer-note" placeholder="e.g. Covering overspend" autocomplete="off">
-          </div>
+      <div class="mobile-sticky-top">
+        <div class="panel-header">
+          <h2>Envelopes & Paycheck Goals</h2>
+          <button type="button" id="toggle-transfer-btn" class="secondary-btn" style="font-size:var(--text-sm); padding:6px 12px;">⇄ Move Money</button>
         </div>
-        <div id="transfer-error" style="display:none; color:var(--danger); font-size:var(--text-sm); margin:8px 0;"></div>
-        <button type="submit" class="txn-submit-btn">Transfer</button>
+        <div id="envelope-transfer-wrapper" style="display:none; margin-bottom:12px;">
+          <form id="envelope-transfer-form">
+          <div class="txn-form-grid">
+            <div class="txn-field">
+              <label class="txn-label" for="transfer-from">From Envelope</label>
+              <select id="transfer-from" required>
+                <option value="" disabled selected>Select Envelope</option>
+              </select>
+            </div>
+            <div class="txn-field">
+              <label class="txn-label" for="transfer-to">To Envelope</label>
+              <select id="transfer-to" required>
+                <option value="" disabled selected>Select Envelope</option>
+              </select>
+            </div>
+            <div class="txn-field">
+              <label class="txn-label" for="transfer-amount">Amount</label>
+              <input type="number" id="transfer-amount" placeholder="0.00" step="0.01" min="0.01" required>
+            </div>
+            <div class="txn-field txn-field-wide">
+              <label class="txn-label" for="transfer-note">Note (optional)</label>
+              <input type="text" id="transfer-note" placeholder="e.g. Covering overspend" autocomplete="off">
+            </div>
+          </div>
+          <div id="transfer-error" style="display:none; color:var(--danger); font-size:var(--text-sm); margin:8px 0;"></div>
+          <button type="submit" class="txn-submit-btn">Transfer</button>
+          </form>
+        </div>
+        <form id="add-envelope-form" class="form-group" style="margin-bottom: 10px;">
+          <input type="text" id="env-name" placeholder="Category (e.g., Groceries)" aria-label="Envelope category name" required autocomplete="off">
+          <input type="number" id="env-goal" placeholder="Per Paycheck $" aria-label="Per paycheck goal amount" step="0.01" min="0" autocomplete="off">
+          <button type="submit">Add</button>
         </form>
-      </div>
-      <form id="add-envelope-form" class="form-group" style="margin-bottom: 10px;">
-        <input type="text" id="env-name" placeholder="Category (e.g., Groceries)" aria-label="Envelope category name" required autocomplete="off">
-        <input type="number" id="env-goal" placeholder="Per Paycheck $" aria-label="Per paycheck goal amount" step="0.01" min="0" autocomplete="off">
-        <button type="submit">Add</button>
-      </form>
+      </div><!-- /.mobile-sticky-top -->
       <div class="scroll-area">
         <div class="envelope-list" id="envelope-list">
             <!-- Populated via JS -->
@@ -1150,7 +1156,7 @@
 
     <!-- Ledger -->
     <div class="panel" id="panel-ledger">
-      <div class="ledger-sticky-top">
+      <div class="mobile-sticky-top">
         <div class="panel-header">
           <h2>Transaction History</h2>
           <button type="button" id="toggle-form-btn" class="secondary-btn" style="font-size:var(--text-sm); padding:6px 12px;">+ Add Transaction</button>
@@ -1260,7 +1266,7 @@
         </select>
         <button id="clear-filters" class="secondary-btn" style="white-space:nowrap;">✕ Clear</button>
       </div>
-      </div><!-- /.ledger-sticky-top -->
+      </div><!-- /.mobile-sticky-top -->
       <div class="scroll-area">
         <table class="ledger-table">
           <thead>
@@ -1283,8 +1289,10 @@
 
     <!-- Recon Bar — desktop inline, mobile full tab -->
   <div id="panel-recon" class="recon-panel">
-    <div class="recon-panel-header">
-      <span class="recon-panel-title">Reconciliation</span>
+    <div class="mobile-sticky-top">
+      <div class="recon-panel-header">
+        <span class="recon-panel-title">Reconciliation</span>
+      </div>
     </div>
     <div class="recon-cards">
       <div class="recon-card">
@@ -1336,11 +1344,13 @@
 
   <!-- Reports Panel -->
   <div class="reports-panel" id="panel-reports">
-    <div class="reports-header">
-      <h2>Reports</h2>
-      <div class="reports-controls">
-        <select id="report-month" aria-label="Filter reports by month"><option value="">All Time</option></select>
-        <button class="csv-btn" id="csv-export-btn">⬇ Export CSV</button>
+    <div class="mobile-sticky-top">
+      <div class="reports-header">
+        <h2>Reports</h2>
+        <div class="reports-controls">
+          <select id="report-month" aria-label="Filter reports by month"><option value="">All Time</option></select>
+          <button class="csv-btn" id="csv-export-btn">⬇ Export CSV</button>
+        </div>
       </div>
     </div>
     <div class="reports-body">
@@ -1846,7 +1856,7 @@
     if (filterBar) filterBar.style.display = open ? '' : 'none';
     // While the form is expanded, the sticky wrapper would grow taller than the
     // panel and clip content — temporarily release it from sticky so it scrolls normally.
-    const stickyTop = document.querySelector('.ledger-sticky-top');
+    const stickyTop = document.querySelector('#panel-ledger .mobile-sticky-top');
     if (stickyTop) stickyTop.classList.toggle('form-expanded', !open);
   });
 
@@ -1862,6 +1872,10 @@
     transferWrapper.style.display = open ? 'none' : 'block';
     toggleTransferBtn.textContent = open ? '⇄ Move Money' : '✕ Cancel';
     if (!open) { renderTransferDropdowns(); transferErrorEl.style.display = 'none'; }
+    // Same reasoning as the Ledger's Add Transaction form: while Move Money
+    // is expanded, release the sticky wrapper so it doesn't clip the form.
+    const stickyTop = document.querySelector('#panel-envelopes .mobile-sticky-top');
+    if (stickyTop) stickyTop.classList.toggle('form-expanded', !open);
   });
 
   function renderTransferDropdowns() {
