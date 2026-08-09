@@ -1916,6 +1916,21 @@
     if (_payeeAcIndex >= 0) items[_payeeAcIndex].scrollIntoView({ block: 'nearest' });
   }
 
+  // Positioning is split out from rendering because it needs to be re-run
+  // after the initial render too: on mobile, focusing the input pops the
+  // on-screen keyboard open, which shrinks the visible (visual) viewport
+  // and/or triggers the browser's own "scroll focused field into view"
+  // behavior — both happen *after* our focusin handler already measured
+  // the field's position, so a one-shot measurement ends up stale and the
+  // dropdown appears anchored to where the field used to be.
+  function positionPayeeAutocomplete() {
+    if (!_payeeAcEl || !_payeeAcInput) return;
+    const rect = _payeeAcInput.getBoundingClientRect();
+    _payeeAcEl.style.left = rect.left + 'px';
+    _payeeAcEl.style.top = (rect.bottom + 2) + 'px';
+    _payeeAcEl.style.width = rect.width + 'px';
+  }
+
   function renderPayeeAutocomplete(input) {
     const query = input.value.trim().toLowerCase();
     const matches = getPayeeNames().filter(n => n.toLowerCase().includes(query)).slice(0, 8);
@@ -1936,18 +1951,26 @@
     _payeeAcEl.innerHTML = matches.map(n =>
       `<div class="payee-autocomplete-item" role="option" data-value="${escapeHtml(n)}">${escapeHtml(n)}</div>`
     ).join('');
-    const rect = input.getBoundingClientRect();
-    _payeeAcEl.style.left = rect.left + 'px';
-    _payeeAcEl.style.top = (rect.bottom + 2) + 'px';
-    _payeeAcEl.style.width = rect.width + 'px';
+    positionPayeeAutocomplete();
   }
 
   document.addEventListener('input', (e) => {
     if (e.target.matches && e.target.matches('.payee-autocomplete-input')) renderPayeeAutocomplete(e.target);
   });
   document.addEventListener('focusin', (e) => {
-    if (e.target.matches && e.target.matches('.payee-autocomplete-input')) renderPayeeAutocomplete(e.target);
+    if (e.target.matches && e.target.matches('.payee-autocomplete-input')) {
+      renderPayeeAutocomplete(e.target);
+      // Re-measure once the on-screen keyboard has finished animating in
+      // (and the browser has finished scrolling the field into view), on
+      // top of the live visualViewport listener below — belt and suspenders
+      // for browsers/timing the resize event doesn't cleanly cover.
+      setTimeout(positionPayeeAutocomplete, 350);
+    }
   });
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', positionPayeeAutocomplete);
+    window.visualViewport.addEventListener('scroll', positionPayeeAutocomplete);
+  }
   document.addEventListener('focusout', (e) => {
     // Delay so a mousedown selection on a suggestion (below) can run first.
     setTimeout(() => {
@@ -2856,8 +2879,15 @@
     const row = document.getElementById('edit-row-' + id);
     if (row) {
       row.style.display = '';
-      const dateInput = document.getElementById('edit-date-' + id);
-      if (dateInput) dateInput.focus();
+      // Focus the amount field rather than the date field: focusing a date
+      // input on mobile (Android Chrome especially) pops the native date
+      // picker open immediately, which is surprising the instant you tap
+      // the edit pencil. The payee field would have a similar problem (it
+      // would immediately pop the autocomplete dropdown open too), so
+      // amount — a plain number field with no focus side effects — still
+      // scrolls the row into view without triggering anything extra.
+      const amountInput = document.getElementById('edit-amount-' + id);
+      if (amountInput) amountInput.focus();
       const txn = state.ledger.find(t => t.id === id);
       if (txn && txn.hasReceipt) {
         const previewEl = document.getElementById('edit-receipt-preview-' + id);
