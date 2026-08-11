@@ -315,15 +315,13 @@
     background: var(--bg-card);
     padding: 20px 30px;
     border-top: 4px solid var(--success);
-    overflow-y: auto;
   }
   .reports-panel {
     padding: 20px 30px;
     border-top: 4px solid var(--primary);
-    overflow-y: auto;
   }
   .panel.desktop-active { display: flex; }
-  .recon-panel.desktop-active { display: block; }
+  .recon-panel.desktop-active { display: flex; }
   .reports-panel.desktop-active { display: flex; }
 
   .panel-header {
@@ -1294,6 +1292,7 @@
         <span class="recon-panel-title">Reconciliation</span>
       </div>
     </div>
+    <div class="scroll-area">
     <div class="recon-cards">
       <div class="recon-card">
         <div class="recon-card-label">Checking Account</div>
@@ -1340,6 +1339,7 @@
         </div>
       </div>
     </div>
+    </div><!-- /.scroll-area -->
   </div>
 
   <!-- Reports Panel -->
@@ -1353,6 +1353,7 @@
         </div>
       </div>
     </div>
+    <div class="scroll-area">
     <div class="reports-body">
       <div class="report-card" id="report-spending">
         <h3>Spending by Envelope</h3>
@@ -1383,6 +1384,7 @@
         <div id="mom-chart"></div>
       </div>
     </div>
+    </div><!-- /.scroll-area -->
   </div>
   </div><!-- end main-content -->
 
