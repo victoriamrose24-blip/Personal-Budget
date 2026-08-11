@@ -1940,8 +1940,23 @@
   function positionPayeeAutocomplete() {
     if (!_payeeAcEl || !_payeeAcInput) return;
     const rect = _payeeAcInput.getBoundingClientRect();
-    _payeeAcEl.style.left = rect.left + 'px';
-    _payeeAcEl.style.top = (rect.bottom + 2) + 'px';
+    // getBoundingClientRect() is relative to the *layout* viewport, which
+    // does not move when the on-screen keyboard opens — instead, mobile
+    // browsers pan/shrink the *visual* viewport within it (this is the
+    // whole reason the VisualViewport API exists). `position: fixed`
+    // elements stay anchored to the layout viewport, so to land a fixed
+    // element at a spot within the currently-visible (panned) area, its
+    // layout-relative target position has to be pushed down/right by
+    // exactly how far the visual viewport has panned — i.e. ADD
+    // visualViewport.offsetTop/offsetLeft, matching the pattern MDN's own
+    // VisualViewport docs use for keeping a fixed element aligned with the
+    // visible area. (An earlier attempt subtracted this offset, which
+    // pushed the dropdown even further off-screen instead of fixing it.)
+    const vv = window.visualViewport;
+    const offsetLeft = vv ? vv.offsetLeft : 0;
+    const offsetTop = vv ? vv.offsetTop : 0;
+    _payeeAcEl.style.left = (rect.left + offsetLeft) + 'px';
+    _payeeAcEl.style.top = (rect.bottom + 2 + offsetTop) + 'px';
     _payeeAcEl.style.width = rect.width + 'px';
   }
 
