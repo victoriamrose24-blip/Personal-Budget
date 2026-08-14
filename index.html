@@ -937,7 +937,16 @@
       overflow-y: auto;
       -webkit-overflow-scrolling: touch;
     }
-    .panel.mobile-active { display: flex; }
+    /* display:block, not flex — WebKit/Safari has long-standing bugs where
+       position:sticky children (.mobile-sticky-top) misbehave inside a
+       display:flex; flex-direction:column scroll container: the sticky
+       header can render partially clipped or stop tracking scroll
+       correctly, only correcting itself on a forced reflow (e.g. switching
+       tabs and back). Nothing here actually needs flex — the two children
+       (.mobile-sticky-top, .scroll-area) just stack vertically either way,
+       since .scroll-area's own flex sizing is already neutralized at this
+       breakpoint (see .scroll-area rule above). */
+    .panel.mobile-active { display: block; }
     .reports-panel {
       display: none;
       padding: var(--mobile-panel-pad-y) var(--mobile-panel-pad-x);
@@ -949,7 +958,7 @@
       overflow-y: auto;
       -webkit-overflow-scrolling: touch;
     }
-    .reports-panel.mobile-active { display: flex; }
+    .reports-panel.mobile-active { display: block; }
     .recon-panel {
       display: none;
       padding: var(--mobile-panel-pad-y) var(--mobile-panel-pad-x);
@@ -962,7 +971,7 @@
       overflow-y: auto;
       -webkit-overflow-scrolling: touch;
     }
-    .recon-panel.mobile-active { display: flex; }
+    .recon-panel.mobile-active { display: block; }
     .recon-cards { flex-direction: column; gap: 12px; }
     .recon-card { flex: none; width: 100%; min-width: 0; }
     .recon-inputs input { width: 100%; flex: 1; }
@@ -978,6 +987,7 @@
        target panel is its own scroll container (overflow-y:auto), so sticky
        is relative to the panel itself, not the page — top:0 is correct here. */
     .mobile-sticky-top {
+      position: -webkit-sticky;
       position: sticky;
       top: calc(-1 * var(--mobile-panel-pad-y));
       background: var(--bg-card);
