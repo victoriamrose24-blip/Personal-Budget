@@ -445,6 +445,36 @@
   .quick-fund-btn { background: var(--success); font-size: var(--text-2xs); padding: 5px 9px; white-space: nowrap; }
   .quick-fund-btn:hover { background: var(--success-hover); }
 
+  /* Recurring Bills & Income */
+  .recurring-section { margin-top: 18px; }
+  .recurring-section-title { font-size: var(--text-sm); color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; margin: 0 0 8px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+  .recurring-list { display: flex; flex-direction: column; gap: 6px; }
+  .recurring-item {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--bg-card);
+    padding: 10px 14px;
+    border-radius: 10px;
+    border-left: 4px solid var(--border);
+    box-shadow: var(--shadow);
+    gap: 8px;
+  }
+  .recurring-item.recur-income { border-left-color: var(--success); }
+  .recurring-item.recur-expense { border-left-color: var(--danger); }
+  .recurring-info { display: flex; flex-direction: column; gap: 4px; }
+  .recurring-name { font-weight: 600; font-size: var(--text-base); }
+  .recurring-meta { font-size: var(--text-2xs); color: var(--text-muted); }
+  .recurring-actions { display: flex; gap: 8px; align-items: center; }
+  .recurring-amount { font-size: var(--text-md); min-width: 65px; text-align: right; }
+  .recurring-edit-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; width: 100%; margin-top: 6px; }
+  .recurring-edit-row input, .recurring-edit-row select { flex: 1; padding: 6px 8px; font-size: var(--text-sm); min-width: 110px; }
+  .recurring-edit-row .confirm-btn { background: var(--success); font-size: var(--text-xs); padding: 6px 10px; white-space: nowrap; flex: 0 0 auto; }
+  .recurring-edit-row .confirm-btn:hover { background: var(--success-hover); }
+  .recurring-edit-row .cancel-btn { background: transparent; color: var(--text-muted); border: 1px solid var(--border); font-size: var(--text-xs); padding: 6px 8px; flex: 0 0 auto; }
+  .recurring-edit-row .cancel-btn:hover { background: var(--border); }
+
   /* Ledger Column */
   .ledger-table { width: 100%; border-collapse: collapse; }
   .ledger-table th, .ledger-table td {
@@ -847,6 +877,8 @@
   .month-table .net-pos { color: var(--success); font-weight: bold; }
   .month-table .net-neg { color: var(--danger); font-weight: bold; }
   .report-empty { color: var(--text-muted); font-style: italic; font-size: var(--text-base); padding: 20px 0; text-align: center; }
+  .forecast-summary { font-size: var(--text-sm); font-weight: 600; margin-bottom: 10px; }
+  .forecast-table td:nth-child(2), .forecast-table th:nth-child(2) { text-align: left; }
   .csv-btn { background: var(--primary); color: white; font-size: var(--text-sm); padding: 7px 14px; font-weight: bold; border: none; }
   .csv-btn:hover { background: var(--primary-hover); }
 
@@ -1027,6 +1059,17 @@
     .envelope-actions .edit-btn { padding: 6px 8px; font-size: var(--text-2xs); flex-shrink: 0; }
     .envelope-actions .delete-btn { padding: 6px 8px; font-size: var(--text-2xs); flex-shrink: 0; }
 
+    /* Recurring items — same two-row mobile layout as envelopes */
+    .recurring-list { gap: 5px; }
+    .recurring-item { flex-direction: column; align-items: stretch; padding: 8px 10px; gap: 6px; }
+    .recurring-info { display: flex; flex-direction: row; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: nowrap; }
+    .recurring-name { font-size: var(--text-base); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; min-width: 0; }
+    .recurring-meta { font-size: var(--text-2xs); white-space: nowrap; flex-shrink: 0; }
+    .recurring-actions { display: flex; align-items: center; gap: 5px; width: 100%; }
+    .recurring-amount { font-size: var(--text-sm); font-weight: 700; min-width: 60px; }
+    .recurring-actions .edit-btn { padding: 6px 8px; font-size: var(--text-2xs); flex-shrink: 0; }
+    .recurring-actions .delete-btn { padding: 6px 8px; font-size: var(--text-2xs); flex-shrink: 0; }
+
     /* Transaction form — single column on mobile */
     .txn-form-grid { grid-template-columns: minmax(0, 1fr); gap: 8px; }
     .txn-field-wide { grid-column: span 1; }
@@ -1121,7 +1164,10 @@
       <div class="mobile-sticky-top">
         <div class="panel-header">
           <h2>Envelopes & Paycheck Goals</h2>
-          <button type="button" id="toggle-transfer-btn" class="secondary-btn" style="font-size:var(--text-sm); padding:6px 12px;">⇄ Move Money</button>
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <button type="button" id="toggle-transfer-btn" class="secondary-btn" style="font-size:var(--text-sm); padding:6px 12px;">⇄ Move Money</button>
+            <button type="button" id="toggle-recurring-btn" class="secondary-btn" style="font-size:var(--text-sm); padding:6px 12px;">🔁 Recurring</button>
+          </div>
         </div>
         <div id="envelope-transfer-wrapper" style="display:none; margin-bottom:12px;">
           <form id="envelope-transfer-form">
@@ -1151,6 +1197,47 @@
           <button type="submit" class="txn-submit-btn">Transfer</button>
           </form>
         </div>
+        <div id="recurring-wrapper" style="display:none; margin-bottom:12px;">
+          <form id="add-recurring-form">
+          <div class="txn-form-grid">
+            <div class="txn-field txn-field-wide">
+              <label class="txn-label" for="recur-name">Name</label>
+              <input type="text" id="recur-name" placeholder="e.g. Paycheck, Rent, Car Payment" required autocomplete="off">
+            </div>
+            <div class="txn-field">
+              <label class="txn-label" for="recur-type">Type</label>
+              <select id="recur-type" required>
+                <option value="expense">Expense</option>
+                <option value="income">Income</option>
+              </select>
+            </div>
+            <div class="txn-field">
+              <label class="txn-label" for="recur-amount">Amount</label>
+              <input type="number" id="recur-amount" placeholder="0.00" step="0.01" min="0.01" required>
+            </div>
+            <div class="txn-field" id="recur-envelope-field">
+              <label class="txn-label" for="recur-envelope">Envelope (optional)</label>
+              <select id="recur-envelope">
+                <option value="">None</option>
+              </select>
+            </div>
+            <div class="txn-field">
+              <label class="txn-label" for="recur-frequency">Repeats</label>
+              <select id="recur-frequency" required>
+                <option value="weekly">Weekly</option>
+                <option value="biweekly" selected>Every 2 weeks</option>
+                <option value="monthly">Monthly</option>
+                <option value="yearly">Yearly</option>
+              </select>
+            </div>
+            <div class="txn-field">
+              <label class="txn-label" for="recur-next-date">Next Date</label>
+              <input type="date" id="recur-next-date" required>
+            </div>
+          </div>
+          <button type="submit" class="txn-submit-btn">Add Recurring Item</button>
+          </form>
+        </div>
         <form id="add-envelope-form" class="form-group" style="margin-bottom: 10px;">
           <input type="text" id="env-name" placeholder="Category (e.g., Groceries)" aria-label="Envelope category name" required autocomplete="off">
           <input type="number" id="env-goal" placeholder="Per Paycheck $" aria-label="Per paycheck goal amount" step="0.01" min="0" autocomplete="off">
@@ -1160,6 +1247,12 @@
       <div class="scroll-area">
         <div class="envelope-list" id="envelope-list">
             <!-- Populated via JS -->
+        </div>
+        <div class="recurring-section" id="recurring-section" style="display:none;">
+          <h3 class="recurring-section-title">Recurring Bills & Income</h3>
+          <div class="recurring-list" id="recurring-list">
+            <!-- Populated via JS -->
+          </div>
         </div>
       </div>
     </div>
@@ -1395,6 +1488,17 @@
         </div>
         <div id="mom-chart"></div>
       </div>
+      <div class="report-card report-card-wide" id="report-forecast">
+        <div class="report-card-header">
+          <h3>Cash Flow Forecast</h3>
+          <select id="forecast-range" aria-label="Cash flow forecast horizon">
+            <option value="30" selected>Next 30 days</option>
+            <option value="60">Next 60 days</option>
+            <option value="90">Next 90 days</option>
+          </select>
+        </div>
+        <div id="forecast-chart"></div>
+      </div>
     </div>
     </div><!-- /.scroll-area -->
   </div>
@@ -1546,10 +1650,16 @@
     });
     if (typeof s.expectedBankBalance === 'undefined') s.expectedBankBalance = 0;
     if (typeof s.expectedCcBalance === 'undefined') s.expectedCcBalance = 0;
+    if (!Array.isArray(s.recurring)) s.recurring = [];
+    s.recurring.forEach(r => {
+      if (typeof r.id === 'undefined') r.id = Date.now().toString() + Math.random();
+      if (typeof r.envelopeId === 'undefined') r.envelopeId = '';
+      if (typeof r.nextDate !== 'undefined') r.nextDate = dateToISO(r.nextDate);
+    });
     return s;
   }
 
-  const DEFAULT_STATE = { expectedBankBalance: 0, expectedCcBalance: 0, envelopes: {}, ledger: [] };
+  const DEFAULT_STATE = { expectedBankBalance: 0, expectedCcBalance: 0, envelopes: {}, ledger: [], recurring: [] };
   let state;
   try {
     const savedState = localStorage.getItem(LOCAL_STORAGE_KEY);
@@ -1853,7 +1963,32 @@
     
     state.envelopes[id] = { name: nameInput.value, balance: 0, goal: goalVal };
     nameInput.value = ''; goalInput.value = '';
-    
+
+    saveState();
+    render();
+  });
+
+  document.getElementById('add-recurring-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const nameInput = document.getElementById('recur-name');
+    const typeInput = document.getElementById('recur-type');
+    const amountInput = document.getElementById('recur-amount');
+    const envelopeInput = document.getElementById('recur-envelope');
+    const frequencyInput = document.getElementById('recur-frequency');
+    const dateInput = document.getElementById('recur-next-date');
+
+    state.recurring.push({
+      id: Date.now().toString() + Math.random(),
+      name: nameInput.value.trim(),
+      type: typeInput.value,
+      amount: roundMoney(parseFloat(amountInput.value) || 0),
+      envelopeId: envelopeInput.value,
+      frequency: frequencyInput.value,
+      nextDate: dateInput.value
+    });
+
+    nameInput.value = ''; amountInput.value = ''; envelopeInput.value = ''; typeInput.value = 'expense'; frequencyInput.value = 'biweekly'; dateInput.value = '';
+
     saveState();
     render();
   });
@@ -1902,6 +2037,30 @@
     transferToSelect.innerHTML = '<option value="" disabled selected>Select Envelope</option>' + opts;
     if (state.envelopes[fromCurrent]) transferFromSelect.value = fromCurrent;
     if (state.envelopes[toCurrent]) transferToSelect.value = toCurrent;
+  }
+
+  // ── Recurring Bills & Income ──
+  const recurringWrapper = document.getElementById('recurring-wrapper');
+  const toggleRecurringBtn = document.getElementById('toggle-recurring-btn');
+  const recurEnvelopeSelect = document.getElementById('recur-envelope');
+
+  toggleRecurringBtn.addEventListener('click', () => {
+    const open = recurringWrapper.style.display !== 'none';
+    recurringWrapper.style.display = open ? 'none' : 'block';
+    toggleRecurringBtn.textContent = open ? '🔁 Recurring' : '✕ Cancel';
+    if (!open) document.getElementById('recur-next-date').value = document.getElementById('recur-next-date').value || todayISO();
+    // Same reasoning as Move Money: release the sticky wrapper while this form is expanded.
+    const stickyTop = document.querySelector('#panel-envelopes .mobile-sticky-top');
+    if (stickyTop) stickyTop.classList.toggle('form-expanded', !open);
+  });
+
+  function renderRecurEnvelopeDropdown() {
+    const current = recurEnvelopeSelect.value;
+    const opts = Object.entries(state.envelopes)
+      .map(([id, env]) => `<option value="${id}">${escapeHtml(env.name)}</option>`)
+      .join('');
+    recurEnvelopeSelect.innerHTML = '<option value="">None</option>' + opts;
+    if (state.envelopes[current]) recurEnvelopeSelect.value = current;
   }
 
   // Names already used on other transactions, most-recently-used first, for
@@ -2689,6 +2848,8 @@
     renderLedger();
     renderDropdown();
     renderTransferDropdowns();
+    renderRecurEnvelopeDropdown();
+    renderRecurringList();
     renderRecon();
     if (typeof renderReports === 'function') renderReports();
     // Dim recon bar until data exists
@@ -3221,6 +3382,111 @@
     render();
   };
 
+  // ── Recurring Bills & Income: list, edit, delete ──
+  const FREQUENCY_LABELS = { weekly: 'Weekly', biweekly: 'Every 2 weeks', monthly: 'Monthly', yearly: 'Yearly' };
+
+  function renderRecurringList() {
+    const sectionEl = document.getElementById('recurring-section');
+    const listEl = document.getElementById('recurring-list');
+    if (state.recurring.length === 0) {
+      sectionEl.style.display = 'none';
+      listEl.innerHTML = '';
+      return;
+    }
+    sectionEl.style.display = '';
+    const sorted = [...state.recurring].sort((a, b) => (a.nextDate || '').localeCompare(b.nextDate || ''));
+    listEl.innerHTML = sorted.map(r => {
+      const envName = r.envelopeId && state.envelopes[r.envelopeId] ? escapeHtml(state.envelopes[r.envelopeId].name) : '';
+      const meta = FREQUENCY_LABELS[r.frequency] + ' · Next: ' + formatDate(r.nextDate) + (envName ? ' · ' + envName : '');
+      const amountColor = r.type === 'income' ? 'var(--success)' : 'var(--danger)';
+      const sign = r.type === 'income' ? '+' : '-';
+      const envOptions = Object.entries(state.envelopes)
+        .map(([id, env]) => `<option value="${id}" ${r.envelopeId === id ? 'selected' : ''}>${escapeHtml(env.name)}</option>`)
+        .join('');
+      const freqOptions = Object.entries(FREQUENCY_LABELS)
+        .map(([val, label]) => `<option value="${val}" ${r.frequency === val ? 'selected' : ''}>${label}</option>`)
+        .join('');
+      return `
+        <div class="recurring-item recur-${r.type}" id="recur-item-${r.id}">
+          <div class="recurring-info">
+            <span class="recurring-name">${escapeHtml(r.name)}</span>
+            <span class="recurring-meta">${meta}</span>
+          </div>
+          <div class="recurring-actions">
+            <span class="recurring-amount" style="color:${amountColor}">${sign}$${r.amount.toFixed(2)}</span>
+            <button class="edit-btn" onclick="openRecurEdit('${r.id}')" title="Edit Recurring Item">✎</button>
+            <button class="delete-btn" onclick="deleteRecurring('${r.id}')" title="Delete Recurring Item">✕</button>
+          </div>
+          <div class="recurring-edit-row" id="recur-edit-row-${r.id}" style="display:none;">
+            <input type="text" id="recur-edit-name-${r.id}" value="${escapeHtml(r.name)}" placeholder="Name" aria-label="Recurring item name">
+            <select id="recur-edit-type-${r.id}" aria-label="Type">
+              <option value="expense" ${r.type === 'expense' ? 'selected' : ''}>Expense</option>
+              <option value="income" ${r.type === 'income' ? 'selected' : ''}>Income</option>
+            </select>
+            <input type="number" id="recur-edit-amount-${r.id}" value="${r.amount}" placeholder="Amount $" step="0.01" min="0.01" aria-label="Amount">
+            <select id="recur-edit-envelope-${r.id}" aria-label="Envelope">
+              <option value="">None</option>
+              ${envOptions}
+            </select>
+            <select id="recur-edit-frequency-${r.id}" aria-label="Repeats">
+              ${freqOptions}
+            </select>
+            <input type="date" id="recur-edit-date-${r.id}" value="${r.nextDate}" aria-label="Next date">
+            <button class="confirm-btn" onclick="saveRecurEdit('${r.id}')">Save</button>
+            <button class="cancel-btn" onclick="closeRecurEdit('${r.id}')">Cancel</button>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  window.openRecurEdit = function(id) {
+    document.querySelectorAll('.recurring-edit-row').forEach(el => el.style.display = 'none');
+    const row = document.getElementById('recur-edit-row-' + id);
+    if (row) {
+      row.style.display = 'flex';
+      const nameInput = document.getElementById('recur-edit-name-' + id);
+      if (nameInput) { nameInput.select(); nameInput.focus(); }
+    }
+  };
+
+  window.closeRecurEdit = function(id) {
+    const row = document.getElementById('recur-edit-row-' + id);
+    if (row) row.style.display = 'none';
+  };
+
+  window.saveRecurEdit = function(id) {
+    const item = state.recurring.find(r => r.id === id);
+    if (!item) return;
+    const nameEl = document.getElementById('recur-edit-name-' + id);
+    const typeEl = document.getElementById('recur-edit-type-' + id);
+    const amountEl = document.getElementById('recur-edit-amount-' + id);
+    const envelopeEl = document.getElementById('recur-edit-envelope-' + id);
+    const frequencyEl = document.getElementById('recur-edit-frequency-' + id);
+    const dateEl = document.getElementById('recur-edit-date-' + id);
+    const name = nameEl.value.trim();
+    if (!name) { nameEl.style.borderColor = 'var(--danger)'; nameEl.focus(); return; }
+    if (!dateEl.value) { dateEl.style.borderColor = 'var(--danger)'; dateEl.focus(); return; }
+    nameEl.style.borderColor = ''; dateEl.style.borderColor = '';
+    item.name = name;
+    item.type = typeEl.value;
+    item.amount = roundMoney(parseFloat(amountEl.value) || 0);
+    item.envelopeId = envelopeEl.value;
+    item.frequency = frequencyEl.value;
+    item.nextDate = dateEl.value;
+    saveState();
+    render();
+  };
+
+  window.deleteRecurring = function(id) {
+    const item = state.recurring.find(r => r.id === id);
+    if (!item) return;
+    if (!confirm(`Delete recurring item "${item.name}"?`)) return;
+    state.recurring = state.recurring.filter(r => r.id !== id);
+    saveState();
+    render();
+  };
+
   function renderDropdown() {
     if(txnTypeSelect.value === 'income' || txnTypeSelect.value === 'cc-payment' || txnTypeSelect.value === 'cc-cashback') return;
     
@@ -3499,6 +3765,134 @@
     toggleBtn.classList.toggle('open', _clearedSectionOpen[acct]);
   };
 
+  // ── CASH FLOW FORECAST ──
+  let forecastHorizonDays = 30;
+
+  // Adds `days` calendar days to an ISO date. Pure UTC-based date math (not
+  // todayISO()'s local-time concern) since this is just calendar arithmetic,
+  // not "what day is it right now for this user".
+  function addDaysISO(dateISO, days) {
+    const [y, m, d] = dateISO.split('-').map(Number);
+    const dt = new Date(Date.UTC(y, m - 1, d));
+    dt.setUTCDate(dt.getUTCDate() + days);
+    return dt.toISOString().slice(0, 10);
+  }
+
+  // Advances a recurring item's occurrence date by one period. Monthly/yearly
+  // clamp to the target month's actual last day (e.g. Jan 31 monthly ->
+  // Feb 28/29) instead of overflowing into the following month.
+  function addRecurInterval(dateISO, frequency) {
+    const [y, m, d] = dateISO.split('-').map(Number);
+    if (frequency === 'weekly') return addDaysISO(dateISO, 7);
+    if (frequency === 'biweekly') return addDaysISO(dateISO, 14);
+    if (frequency === 'monthly' || frequency === 'yearly') {
+      const targetYear = frequency === 'yearly' ? y + 1 : (m === 12 ? y + 1 : y);
+      const targetMonth = frequency === 'yearly' ? m - 1 : (m === 12 ? 0 : m);
+      const daysInTargetMonth = new Date(Date.UTC(targetYear, targetMonth + 1, 0)).getUTCDate();
+      const dt = new Date(Date.UTC(targetYear, targetMonth, Math.min(d, daysInTargetMonth)));
+      return dt.toISOString().slice(0, 10);
+    }
+    return dateISO;
+  }
+
+  // The forecast's starting point: the checking balance implied by the
+  // ledger so far, using the same running-balance logic as the Ledger tab's
+  // "Chk Bal" column.
+  function getCurrentCheckingBalance() {
+    const sorted = [...state.ledger]
+      .filter(t => t.type !== 'funding' && t.type !== 'envelope-transfer')
+      .sort((a, b) => (a.dateISO || a.date).localeCompare(b.dateISO || b.date));
+    let running = 0;
+    sorted.forEach(t => {
+      if (t.type === 'income') running = roundMoney(running + t.amount);
+      else if ((t.type === 'expense' || t.type === 'split') && t.account !== 'cc') running = roundMoney(running - t.amount);
+      else if (t.type === 'cc-payment') running = roundMoney(running - t.amount);
+      else if (t.type === 'transfer') running = roundMoney(running - t.amount);
+    });
+    return running;
+  }
+
+  // Expands every recurring item forward from today across the horizon,
+  // merges the occurrences chronologically, and walks a running checking
+  // balance starting from today's actual balance.
+  function computeCashFlowForecast(horizonDays) {
+    const today = todayISO();
+    const endDate = addDaysISO(today, horizonDays);
+    const events = [];
+
+    state.recurring.forEach(r => {
+      if (!r.nextDate) return;
+      let occurrence = r.nextDate;
+      // Roll a stale (past) next-date forward to the first occurrence at or
+      // after today, so an unmaintained item still lands correctly in the
+      // forecast instead of dumping missed past occurrences into it.
+      let guard = 0;
+      while (occurrence < today && guard < 1000) {
+        occurrence = addRecurInterval(occurrence, r.frequency);
+        guard++;
+      }
+      guard = 0;
+      while (occurrence <= endDate && guard < 1000) {
+        events.push({ date: occurrence, name: r.name, type: r.type, amount: r.amount });
+        occurrence = addRecurInterval(occurrence, r.frequency);
+        guard++;
+      }
+    });
+
+    events.sort((a, b) => a.date.localeCompare(b.date) || (a.type === 'income' ? -1 : 1));
+
+    const startBalance = getCurrentCheckingBalance();
+    let running = startBalance;
+    let lowest = running;
+    let lowestDate = today;
+    const rows = events.map(evt => {
+      running = roundMoney(running + (evt.type === 'income' ? evt.amount : -evt.amount));
+      if (running < lowest) { lowest = running; lowestDate = evt.date; }
+      return { date: evt.date, name: evt.name, type: evt.type, amount: evt.amount, balance: running };
+    });
+
+    return { startBalance, rows, lowest, lowestDate, goesNegative: lowest < 0 };
+  }
+
+  function renderCashFlowForecast() {
+    const el = document.getElementById('forecast-chart');
+    if (state.recurring.length === 0) {
+      el.innerHTML = '<div class="report-empty">Add recurring bills or income on the Envelopes tab to see a forecast.</div>';
+      return;
+    }
+
+    const forecast = computeCashFlowForecast(forecastHorizonDays);
+    if (forecast.rows.length === 0) {
+      el.innerHTML = `<div class="report-empty">No recurring items land within the next ${forecastHorizonDays} days.</div>`;
+      return;
+    }
+
+    const summaryColor = forecast.goesNegative ? 'var(--danger)' : 'var(--success)';
+    const summaryText = forecast.goesNegative
+      ? `⚠ Projected to go negative: as low as $${forecast.lowest.toFixed(2)} around ${formatDate(forecast.lowestDate)}.`
+      : `Lowest projected balance: $${forecast.lowest.toFixed(2)} around ${formatDate(forecast.lowestDate)}.`;
+
+    let rows = '';
+    forecast.rows.forEach(evt => {
+      const isCredit = evt.type === 'income';
+      const sign = isCredit ? '+' : '-';
+      const amtColor = isCredit ? 'var(--success)' : 'var(--danger)';
+      const balClass = evt.balance < 0 ? 'net-neg' : '';
+      rows += '<tr>'
+        + '<td>' + formatDate(evt.date) + '</td>'
+        + '<td>' + escapeHtml(evt.name) + '</td>'
+        + '<td style="color:' + amtColor + '">' + sign + '$' + evt.amount.toFixed(2) + '</td>'
+        + '<td class="' + balClass + '">$' + evt.balance.toFixed(2) + '</td>'
+        + '</tr>';
+    });
+
+    el.innerHTML = '<div class="forecast-summary" style="color:' + summaryColor + '">' + summaryText + '</div>'
+      + '<table class="month-table forecast-table">'
+      + '<thead><tr><th>Date</th><th>Item</th><th>Amount</th><th>Proj. Balance</th></tr></thead>'
+      + '<tbody>' + rows + '</tbody>'
+      + '</table>';
+  }
+
   function renderReports() {
     buildMonthOptions();
     // Default spending chart to current month if no selection
@@ -3512,6 +3906,7 @@
     renderSavingsRate(monthKey);
     renderCCSplit(monthKey);
     renderEnvelopeHealth();
+    renderCashFlowForecast();
   }
 
   document.getElementById('report-month').addEventListener('change', () => {
@@ -3524,6 +3919,11 @@
   document.getElementById('mom-range').addEventListener('change', (e) => {
     momRangeMonths = e.target.value === 'all' ? null : parseInt(e.target.value, 10);
     renderMomChart();
+  });
+
+  document.getElementById('forecast-range').addEventListener('change', (e) => {
+    forecastHorizonDays = parseInt(e.target.value, 10);
+    renderCashFlowForecast();
   });
 
   document.getElementById('csv-export-btn').addEventListener('click', () => {
