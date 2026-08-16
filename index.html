@@ -887,6 +887,18 @@
   .forecast-table td:nth-child(2), .forecast-table th:nth-child(2) { text-align: left; }
   .forecast-bal-unchanged { color: var(--text-muted); }
   .forecast-table .account-badge { display: inline-block; margin-left: 6px; }
+  .forecast-row-posted { opacity: 0.6; }
+  .forecast-posted-badge {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 1px 6px;
+    border-radius: 10px;
+    background: var(--border);
+    color: var(--text-muted);
+    font-size: var(--text-2xs);
+    font-weight: 600;
+    vertical-align: 1px;
+  }
   .csv-btn { background: var(--primary); color: white; font-size: var(--text-sm); padding: 7px 14px; font-weight: bold; border: none; }
   .csv-btn:hover { background: var(--primary-hover); }
 
@@ -1643,6 +1655,11 @@
   // by the time that runs.
   const FREQUENCY_LABELS = { weekly: 'Weekly', biweekly: 'Every 2 weeks', monthly: 'Monthly', yearly: 'Yearly' };
   const DEFAULT_FREQUENCY = 'monthly';
+  // How far from a projected date a real transaction can sit and still be
+  // considered that same occurrence (bills rarely post on the exact day).
+  // Kept well under half of each interval so a match can't be claimed by the
+  // neighbouring occurrence.
+  const FREQUENCY_MATCH_WINDOW_DAYS = { weekly: 2, biweekly: 5, monthly: 7, yearly: 14 };
 
   // --- THEME (light/dark) ---
   // No explicit preference stored -> the CSS `prefers-color-scheme` media
@@ -3944,6 +3961,36 @@
     return delta;
   }
 
+  // Whole days between two ISO dates (UTC, so DST can't make this 0.96 days).
+  function daysBetweenISO(aISO, bISO) {
+    const [ay, am, ad] = aISO.split('-').map(Number);
+    const [by, bm, bd] = bISO.split('-').map(Number);
+    return Math.round((Date.UTC(ay, am - 1, ad) - Date.UTC(by, bm - 1, bd)) / MS_PER_DAY);
+  }
+
+  // Has this projected occurrence already been entered as a real transaction?
+  //
+  // Every ledger entry is already reflected in the forecast's starting
+  // balance — cleared ones through the bank balance itself, uncleared ones
+  // through the uncleared adjustment — so projecting an occurrence that has
+  // already posted would count the same bill twice. Matching is on payee,
+  // type and account within a window around the due date; the amount is
+  // deliberately ignored, because variable bills (utilities, groceries) still
+  // represent that occurrence having happened.
+  function isOccurrencePosted(item, occurrenceISO) {
+    const name = (item.name || '').trim().toLowerCase();
+    if (!name) return false;
+    const windowDays = FREQUENCY_MATCH_WINDOW_DAYS[item.frequency] ?? 7;
+    const itemAccount = item.account === 'cc' ? 'cc' : 'checking';
+    return state.ledger.some(t => {
+      if (t.type !== item.type) return false;
+      if ((t.account === 'cc' ? 'cc' : 'checking') !== itemAccount) return false;
+      if ((t.payee || '').trim().toLowerCase() !== name) return false;
+      if (!isISODate(t.dateISO)) return false;
+      return Math.abs(daysBetweenISO(t.dateISO, occurrenceISO)) <= windowDays;
+    });
+  }
+
   // The forecast's starting point: the real money on hand right now.
   //
   // This deliberately does NOT sum the ledger. The Ledger tab's "Chk Bal"
@@ -3979,7 +4026,10 @@
         occurrence = next;
       }
       while (occurrence <= endDate) {
-        events.push({ date: occurrence, name: r.name, type: r.type, amount: r.amount, account: r.account || 'checking' });
+        events.push({
+          date: occurrence, name: r.name, type: r.type, amount: r.amount,
+          account: r.account || 'checking', posted: isOccurrencePosted(r, occurrence)
+        });
         const next = addRecurInterval(occurrence, r.frequency);
         if (!next || next <= occurrence) return;
         occurrence = next;
@@ -3996,15 +4046,19 @@
     const rows = events.map(evt => {
       // A charge on the credit card doesn't move cash — checking is only
       // affected later, when you pay the card — so it's listed for awareness
-      // but leaves the projected balance untouched.
+      // but leaves the projected balance untouched. An occurrence already
+      // entered in the ledger is likewise left out of the arithmetic: it is
+      // part of the starting balance already.
       const onCard = evt.type === 'expense' && evt.account === 'cc';
-      if (onCard) {
+      if (evt.posted) {
+        // already counted in startBalance — no effect either way
+      } else if (onCard) {
         cardCharges = roundMoney(cardCharges + evt.amount);
       } else {
         running = roundMoney(running + (evt.type === 'income' ? evt.amount : -evt.amount));
         if (running < lowest) { lowest = running; lowestDate = evt.date; }
       }
-      return { date: evt.date, name: evt.name, type: evt.type, amount: evt.amount, onCard, balance: running };
+      return { date: evt.date, name: evt.name, type: evt.type, amount: evt.amount, onCard, posted: evt.posted, balance: running };
     });
 
     return { startBalance, rows, lowest, lowestDate, goesNegative: lowest < 0, cardCharges };
@@ -4046,13 +4100,20 @@
       const amtColor = isCredit ? 'var(--success)' : 'var(--danger)';
       const balClass = evt.balance < 0 ? 'net-neg' : '';
       const cardBadge = evt.onCard ? '<span class="account-badge">CC</span>' : '';
-      rows += '<tr>'
+      const postedBadge = evt.posted ? '<span class="forecast-posted-badge">recorded</span>' : '';
+      let balanceCell;
+      if (evt.posted) {
+        balanceCell = '<td class="forecast-bal-unchanged" title="Already entered in your ledger, so it is part of the starting balance">—</td>';
+      } else if (evt.onCard) {
+        balanceCell = '<td class="forecast-bal-unchanged" title="Card charge — does not affect checking until you pay the card">—</td>';
+      } else {
+        balanceCell = '<td class="' + balClass + '">$' + evt.balance.toFixed(2) + '</td>';
+      }
+      rows += '<tr' + (evt.posted ? ' class="forecast-row-posted"' : '') + '>'
         + '<td>' + formatDate(evt.date) + '</td>'
-        + '<td>' + escapeHtml(evt.name) + cardBadge + '</td>'
+        + '<td>' + escapeHtml(evt.name) + cardBadge + postedBadge + '</td>'
         + '<td style="color:' + amtColor + '">' + sign + '$' + evt.amount.toFixed(2) + '</td>'
-        + (evt.onCard
-            ? '<td class="forecast-bal-unchanged" title="Card charge — does not affect checking until you pay the card">—</td>'
-            : '<td class="' + balClass + '">$' + evt.balance.toFixed(2) + '</td>')
+        + balanceCell
         + '</tr>';
     });
 
