@@ -529,11 +529,15 @@
     border: 1px solid var(--primary);
     box-shadow: var(--shadow);
   }
-  .edit-row-actions { display: flex; gap: 8px; justify-content: flex-end; }
+  .edit-row-actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
   .edit-save-btn { background: var(--success); color: white; font-size: var(--text-sm); font-weight: bold; padding: 8px 18px; white-space: nowrap; }
   .edit-save-btn:hover { background: var(--success-hover); }
   .edit-cancel-btn { background: transparent; color: var(--text-muted); border: 1px solid var(--border); font-size: var(--text-sm); padding: 8px 16px; white-space: nowrap; }
   .edit-cancel-btn:hover { background: var(--border-hover); color: var(--text-main); }
+  /* Pinned to the left of Cancel/Save via margin-right:auto, which wins over
+     the row's justify-content:flex-end for just this one flex item. */
+  .edit-recur-btn { background: var(--accent); color: white; font-size: var(--text-sm); padding: 8px 14px; white-space: nowrap; margin-right: auto; }
+  .edit-recur-btn:hover { background: var(--primary-hover); }
   .edit-btn { background: transparent; color: var(--primary); border: 1px solid var(--primary); padding: 4px 8px; font-size: var(--text-xs); }
   .edit-btn:hover { background: var(--primary); color: white; }
 
@@ -1107,6 +1111,7 @@
     .delete-btn, .edit-btn { padding: 5px 6px; font-size: var(--text-2xs); }
     .edit-row-inner { padding: 12px; gap: 12px; }
     .edit-save-btn, .edit-cancel-btn { flex: 1 1 auto; }
+    .edit-recur-btn { flex: 1 1 100%; margin-right: 0; order: -1; }
 
     /* Reports */
     .reports-body { grid-template-columns: 1fr; gap: 10px; }
@@ -3072,6 +3077,7 @@
                 </div>
               </div>
               <div class="edit-row-actions">
+                ${(txn.type === 'income' || txn.type === 'expense') ? `<button class="edit-recur-btn" onclick="makeRecurringFromTxn('${txn.id}')" title="Set this up as a recurring bill or income item">🔁 Make Recurring</button>` : ''}
                 <button class="edit-cancel-btn" onclick="closeEditRow('${txn.id}')">Cancel</button>
                 <button class="edit-save-btn" onclick="saveEdit('${txn.id}')">Save</button>
               </div>
@@ -3113,6 +3119,34 @@
         renderReceiptPreview('edit-receipt-preview-' + id, null);
       }
     }
+  };
+
+  // Pre-fills the Recurring form on the Envelopes tab from an existing
+  // transaction (name, amount, type, envelope), so setting up a recurring
+  // bill/paycheck doesn't mean retyping details that are already on record —
+  // only the frequency and next date, which no single past transaction can
+  // tell us, are left for the user to fill in.
+  window.makeRecurringFromTxn = function(id) {
+    const txn = state.ledger.find(t => t.id === id);
+    if (!txn) return;
+    closeEditRow(id);
+
+    switchTab('envelopes');
+    switchDesktopTab('envelopes');
+
+    if (recurringWrapper.style.display === 'none') toggleRecurringBtn.click();
+
+    document.getElementById('recur-name').value = txn.payee;
+    document.getElementById('recur-type').value = txn.type;
+    document.getElementById('recur-amount').value = txn.amount;
+    renderRecurEnvelopeDropdown();
+    document.getElementById('recur-envelope').value = (txn.categoryId && state.envelopes[txn.categoryId]) ? txn.categoryId : '';
+
+    const dateInput = document.getElementById('recur-next-date');
+    dateInput.value = todayISO();
+
+    document.getElementById('recurring-wrapper').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    dateInput.focus();
   };
 
   window.editReceiptChange = function(id) {
