@@ -881,8 +881,12 @@
   .month-table .net-pos { color: var(--success); font-weight: bold; }
   .month-table .net-neg { color: var(--danger); font-weight: bold; }
   .report-empty { color: var(--text-muted); font-style: italic; font-size: var(--text-base); padding: 20px 0; text-align: center; }
-  .forecast-summary { font-size: var(--text-sm); font-weight: 600; margin-bottom: 10px; }
+  .forecast-summary { font-size: var(--text-sm); font-weight: 600; margin-bottom: 6px; }
+  .forecast-note { font-size: var(--text-2xs); color: var(--text-muted); margin-bottom: 10px; line-height: 1.45; }
+  .forecast-note-warn { color: var(--danger); font-weight: 600; }
   .forecast-table td:nth-child(2), .forecast-table th:nth-child(2) { text-align: left; }
+  .forecast-bal-unchanged { color: var(--text-muted); }
+  .forecast-table .account-badge { display: inline-block; margin-left: 6px; }
   .csv-btn { background: var(--primary); color: white; font-size: var(--text-sm); padding: 7px 14px; font-weight: bold; border: none; }
   .csv-btn:hover { background: var(--primary-hover); }
 
@@ -1250,6 +1254,13 @@
               <label class="txn-label" for="recur-amount">Amount</label>
               <input type="number" id="recur-amount" placeholder="0.00" step="0.01" min="0.01" required>
             </div>
+            <div class="txn-field">
+              <label class="txn-label" for="recur-account">Account</label>
+              <select id="recur-account">
+                <option value="checking">Checking</option>
+                <option value="cc">Credit Card</option>
+              </select>
+            </div>
             <div class="txn-field" id="recur-envelope-field">
               <label class="txn-label" for="recur-envelope">Envelope (optional)</label>
               <select id="recur-envelope">
@@ -1573,9 +1584,18 @@
     return `"${s.replace(/"/g, '""')}"`;
   }
 
-  // Always format dates as MM/DD/YYYY regardless of browser locale
+  // True only for a well-formed YYYY-MM-DD string.
+  function isISODate(value) {
+    return /^\d{4}-\d{2}-\d{2}$/.test(String(value ?? ''));
+  }
+
+  // Always format dates as MM/DD/YYYY regardless of browser locale. Returns a
+  // placeholder rather than throwing on a missing/malformed date: this is
+  // called while rendering, so an exception here would abort render() and
+  // take the whole app down over one bad record (e.g. from an edited backup).
   function formatDate(dateISO) {
-    const [y, m, d] = dateISO.split('-');
+    const [y, m, d] = String(dateISO ?? '').split('-');
+    if (!y || !m || !d) return '—';
     return `${m.padStart(2,'0')}/${d.padStart(2,'0')}/${y}`;
   }
 
@@ -1617,6 +1637,12 @@
   const SAVINGS_RATE_OK_PCT = 10;
   const ENVELOPE_HEALTH_WARN_RATIO = 0.5; // envelope balance below this fraction of its goal is flagged "low"
   const RECENTLY_CLEARED_LIMIT = 20;     // cap on the Reconcile "Recently Cleared" list
+  // Recurring-item frequencies. Defined up here rather than beside the
+  // recurring UI because normalizeState() below validates against it, and a
+  // `const` further down the file would still be in its temporal dead zone
+  // by the time that runs.
+  const FREQUENCY_LABELS = { weekly: 'Weekly', biweekly: 'Every 2 weeks', monthly: 'Monthly', yearly: 'Yearly' };
+  const DEFAULT_FREQUENCY = 'monthly';
 
   // --- THEME (light/dark) ---
   // No explicit preference stored -> the CSS `prefers-color-scheme` media
@@ -1689,7 +1715,16 @@
     s.recurring.forEach(r => {
       if (typeof r.id === 'undefined') r.id = Date.now().toString() + Math.random();
       if (typeof r.envelopeId === 'undefined') r.envelopeId = '';
-      if (typeof r.nextDate !== 'undefined') r.nextDate = dateToISO(r.nextDate);
+      // Repair rather than trust: a backup can be hand-edited or predate a
+      // field. An unusable date or frequency here would otherwise break
+      // rendering or make the forecast loop unable to advance.
+      r.nextDate = dateToISO(r.nextDate);
+      if (!isISODate(r.nextDate)) r.nextDate = todayISO();
+      if (!FREQUENCY_LABELS[r.frequency]) r.frequency = DEFAULT_FREQUENCY;
+      if (r.type !== 'income' && r.type !== 'expense') r.type = 'expense';
+      // Income is always treated as landing in checking, mirroring the ledger.
+      if (r.type === 'income' || r.account !== 'cc') r.account = 'checking';
+      r.amount = roundMoney(parseFloat(r.amount) || 0);
     });
     return s;
   }
@@ -2009,6 +2044,7 @@
     const typeInput = document.getElementById('recur-type');
     const amountInput = document.getElementById('recur-amount');
     const envelopeInput = document.getElementById('recur-envelope');
+    const accountInput = document.getElementById('recur-account');
     const frequencyInput = document.getElementById('recur-frequency');
     const dateInput = document.getElementById('recur-next-date');
 
@@ -2018,11 +2054,14 @@
       type: typeInput.value,
       amount: roundMoney(parseFloat(amountInput.value) || 0),
       envelopeId: envelopeInput.value,
+      account: typeInput.value === 'income' ? 'checking' : accountInput.value,
       frequency: frequencyInput.value,
       nextDate: dateInput.value
     });
 
-    nameInput.value = ''; amountInput.value = ''; envelopeInput.value = ''; typeInput.value = 'expense'; frequencyInput.value = 'biweekly'; dateInput.value = '';
+    nameInput.value = ''; amountInput.value = ''; envelopeInput.value = ''; typeInput.value = 'expense';
+    accountInput.value = 'checking'; frequencyInput.value = 'biweekly'; dateInput.value = '';
+    syncRecurAccountField();
 
     saveState();
     render();
@@ -2095,6 +2134,19 @@
     if (!open) document.getElementById('recur-next-date').value = document.getElementById('recur-next-date').value || todayISO();
     syncPanelFormExpanded('panel-envelopes');
   });
+
+  // Income always lands in checking (same rule the ledger and Reconcile use),
+  // so the account choice is only meaningful for expenses.
+  function syncRecurAccountField() {
+    const typeEl = document.getElementById('recur-type');
+    const accountEl = document.getElementById('recur-account');
+    if (!typeEl || !accountEl) return;
+    const isIncome = typeEl.value === 'income';
+    if (isIncome) accountEl.value = 'checking';
+    accountEl.disabled = isIncome;
+  }
+  document.getElementById('recur-type').addEventListener('change', syncRecurAccountField);
+  syncRecurAccountField();
 
   function renderRecurEnvelopeDropdown() {
     const current = recurEnvelopeSelect.value;
@@ -3169,6 +3221,8 @@
     document.getElementById('recur-name').value = txn.payee;
     document.getElementById('recur-type').value = txn.type;
     document.getElementById('recur-amount').value = txn.amount;
+    document.getElementById('recur-account').value = txn.account === 'cc' ? 'cc' : 'checking';
+    syncRecurAccountField();
     renderRecurEnvelopeDropdown();
     document.getElementById('recur-envelope').value = (txn.categoryId && state.envelopes[txn.categoryId]) ? txn.categoryId : '';
 
@@ -3454,8 +3508,6 @@
   };
 
   // ── Recurring Bills & Income: list, edit, delete ──
-  const FREQUENCY_LABELS = { weekly: 'Weekly', biweekly: 'Every 2 weeks', monthly: 'Monthly', yearly: 'Yearly' };
-
   function renderRecurringList() {
     const sectionEl = document.getElementById('recurring-section');
     const listEl = document.getElementById('recurring-list');
@@ -3468,7 +3520,8 @@
     const sorted = [...state.recurring].sort((a, b) => (a.nextDate || '').localeCompare(b.nextDate || ''));
     listEl.innerHTML = sorted.map(r => {
       const envName = r.envelopeId && state.envelopes[r.envelopeId] ? escapeHtml(state.envelopes[r.envelopeId].name) : '';
-      const meta = FREQUENCY_LABELS[r.frequency] + ' · Next: ' + formatDate(r.nextDate) + (envName ? ' · ' + envName : '');
+      const acctLabel = r.account === 'cc' ? ' · Credit Card' : '';
+      const meta = FREQUENCY_LABELS[r.frequency] + ' · Next: ' + formatDate(r.nextDate) + acctLabel + (envName ? ' · ' + envName : '');
       const amountColor = r.type === 'income' ? 'var(--success)' : 'var(--danger)';
       const sign = r.type === 'income' ? '+' : '-';
       const envOptions = Object.entries(state.envelopes)
@@ -3495,6 +3548,10 @@
               <option value="income" ${r.type === 'income' ? 'selected' : ''}>Income</option>
             </select>
             <input type="number" id="recur-edit-amount-${r.id}" value="${r.amount}" placeholder="Amount $" step="0.01" min="0.01" aria-label="Amount">
+            <select id="recur-edit-account-${r.id}" aria-label="Account" ${r.type === 'income' ? 'disabled' : ''}>
+              <option value="checking" ${r.account !== 'cc' ? 'selected' : ''}>Checking</option>
+              <option value="cc" ${r.account === 'cc' ? 'selected' : ''}>Credit Card</option>
+            </select>
             <select id="recur-edit-envelope-${r.id}" aria-label="Envelope">
               <option value="">None</option>
               ${envOptions}
@@ -3532,6 +3589,7 @@
     const nameEl = document.getElementById('recur-edit-name-' + id);
     const typeEl = document.getElementById('recur-edit-type-' + id);
     const amountEl = document.getElementById('recur-edit-amount-' + id);
+    const accountEl = document.getElementById('recur-edit-account-' + id);
     const envelopeEl = document.getElementById('recur-edit-envelope-' + id);
     const frequencyEl = document.getElementById('recur-edit-frequency-' + id);
     const dateEl = document.getElementById('recur-edit-date-' + id);
@@ -3543,6 +3601,7 @@
     item.type = typeEl.value;
     item.amount = roundMoney(parseFloat(amountEl.value) || 0);
     item.envelopeId = envelopeEl.value;
+    item.account = item.type === 'income' ? 'checking' : accountEl.value;
     item.frequency = frequencyEl.value;
     item.nextDate = dateEl.value;
     saveState();
@@ -3852,7 +3911,10 @@
   // Advances a recurring item's occurrence date by one period. Monthly/yearly
   // clamp to the target month's actual last day (e.g. Jan 31 monthly ->
   // Feb 28/29) instead of overflowing into the following month.
+  // Returns null for anything it can't advance, so callers can stop instead
+  // of looping forever on a date that never moves.
   function addRecurInterval(dateISO, frequency) {
+    if (!isISODate(dateISO)) return null;
     const [y, m, d] = dateISO.split('-').map(Number);
     if (frequency === 'weekly') return addDaysISO(dateISO, 7);
     if (frequency === 'biweekly') return addDaysISO(dateISO, 14);
@@ -3863,24 +3925,36 @@
       const dt = new Date(Date.UTC(targetYear, targetMonth, Math.min(d, daysInTargetMonth)));
       return dt.toISOString().slice(0, 10);
     }
-    return dateISO;
+    return null;
   }
 
-  // The forecast's starting point: the checking balance implied by the
-  // ledger so far, using the same running-balance logic as the Ledger tab's
-  // "Chk Bal" column.
-  function getCurrentCheckingBalance() {
-    const sorted = [...state.ledger]
-      .filter(t => t.type !== 'funding' && t.type !== 'envelope-transfer')
-      .sort((a, b) => (a.dateISO || a.date).localeCompare(b.dateISO || b.date));
-    let running = 0;
-    sorted.forEach(t => {
-      if (t.type === 'income') running = roundMoney(running + t.amount);
-      else if ((t.type === 'expense' || t.type === 'split') && t.account !== 'cc') running = roundMoney(running - t.amount);
-      else if (t.type === 'cc-payment') running = roundMoney(running - t.amount);
-      else if (t.type === 'transfer') running = roundMoney(running - t.amount);
+  // Net effect on checking of everything recorded but NOT yet cleared the
+  // bank. Mirrors renderRecon()'s cleared-side arithmetic exactly, just with
+  // the cleared flag inverted.
+  function getUnclearedCheckingDelta() {
+    let delta = 0;
+    state.ledger.forEach(t => {
+      if (t.cleared || t.type === 'funding' || t.type === 'envelope-transfer') return;
+      const isChecking = t.account !== 'cc';
+      if (t.type === 'income') delta = roundMoney(delta + t.amount);
+      else if ((t.type === 'expense' || t.type === 'split') && isChecking) delta = roundMoney(delta - t.amount);
+      else if (t.type === 'cc-payment') delta = roundMoney(delta - t.amount);
+      else if (t.type === 'transfer') delta = roundMoney(delta - t.amount);
     });
-    return running;
+    return delta;
+  }
+
+  // The forecast's starting point: the real money on hand right now.
+  //
+  // This deliberately does NOT sum the ledger. The Ledger tab's "Chk Bal"
+  // column is a running total that starts from zero at your first recorded
+  // transaction, so it is only a relative figure — unless your ledger goes
+  // all the way back to an opening deposit it is not what is actually in the
+  // bank, and projecting from it produced false "you'll overdraft" warnings.
+  // The authoritative number is the balance entered on the Reconcile tab,
+  // adjusted for transactions recorded since that haven't cleared yet.
+  function getForecastStartBalance() {
+    return roundMoney((state.expectedBankBalance || 0) + getUnclearedCheckingDelta());
   }
 
   // Expands every recurring item forward from today across the horizon,
@@ -3892,37 +3966,48 @@
     const events = [];
 
     state.recurring.forEach(r => {
-      if (!r.nextDate) return;
+      if (!isISODate(r.nextDate)) return;
       let occurrence = r.nextDate;
       // Roll a stale (past) next-date forward to the first occurrence at or
       // after today, so an unmaintained item still lands correctly in the
-      // forecast instead of dumping missed past occurrences into it.
-      let guard = 0;
-      while (occurrence < today && guard < 1000) {
-        occurrence = addRecurInterval(occurrence, r.frequency);
-        guard++;
+      // forecast instead of dumping missed past occurrences into it. Every
+      // step bails out if the date fails to move forward, so a frequency this
+      // build doesn't understand can never spin the loop.
+      while (occurrence < today) {
+        const next = addRecurInterval(occurrence, r.frequency);
+        if (!next || next <= occurrence) return;
+        occurrence = next;
       }
-      guard = 0;
-      while (occurrence <= endDate && guard < 1000) {
-        events.push({ date: occurrence, name: r.name, type: r.type, amount: r.amount });
-        occurrence = addRecurInterval(occurrence, r.frequency);
-        guard++;
+      while (occurrence <= endDate) {
+        events.push({ date: occurrence, name: r.name, type: r.type, amount: r.amount, account: r.account || 'checking' });
+        const next = addRecurInterval(occurrence, r.frequency);
+        if (!next || next <= occurrence) return;
+        occurrence = next;
       }
     });
 
     events.sort((a, b) => a.date.localeCompare(b.date) || (a.type === 'income' ? -1 : 1));
 
-    const startBalance = getCurrentCheckingBalance();
+    const startBalance = getForecastStartBalance();
     let running = startBalance;
     let lowest = running;
     let lowestDate = today;
+    let cardCharges = 0;
     const rows = events.map(evt => {
-      running = roundMoney(running + (evt.type === 'income' ? evt.amount : -evt.amount));
-      if (running < lowest) { lowest = running; lowestDate = evt.date; }
-      return { date: evt.date, name: evt.name, type: evt.type, amount: evt.amount, balance: running };
+      // A charge on the credit card doesn't move cash — checking is only
+      // affected later, when you pay the card — so it's listed for awareness
+      // but leaves the projected balance untouched.
+      const onCard = evt.type === 'expense' && evt.account === 'cc';
+      if (onCard) {
+        cardCharges = roundMoney(cardCharges + evt.amount);
+      } else {
+        running = roundMoney(running + (evt.type === 'income' ? evt.amount : -evt.amount));
+        if (running < lowest) { lowest = running; lowestDate = evt.date; }
+      }
+      return { date: evt.date, name: evt.name, type: evt.type, amount: evt.amount, onCard, balance: running };
     });
 
-    return { startBalance, rows, lowest, lowestDate, goesNegative: lowest < 0 };
+    return { startBalance, rows, lowest, lowestDate, goesNegative: lowest < 0, cardCharges };
   }
 
   function renderCashFlowForecast() {
@@ -3943,25 +4028,42 @@
       ? `⚠ Projected to go negative: as low as $${forecast.lowest.toFixed(2)} around ${formatDate(forecast.lowestDate)}.`
       : `Lowest projected balance: $${forecast.lowest.toFixed(2)} around ${formatDate(forecast.lowestDate)}.`;
 
+    // Be explicit about where the projection starts, so the numbers can be
+    // sanity-checked instead of taken on faith.
+    const startLine = `Starting from $${forecast.startBalance.toFixed(2)} — your Reconcile balance, adjusted for uncleared transactions.`;
+    const needsBalance = !state.expectedBankBalance;
+    const balanceHint = needsBalance
+      ? '<div class="forecast-note forecast-note-warn">Set your actual balance on the Reconcile tab — without it this projects from $0 and the amounts below will be off.</div>'
+      : '';
+    const cardNote = forecast.cardCharges > 0
+      ? `<div class="forecast-note">Plus $${forecast.cardCharges.toFixed(2)} in card charges due. These don't reduce checking until you pay the card, so they aren't in the balance above.</div>`
+      : '';
+
     let rows = '';
     forecast.rows.forEach(evt => {
       const isCredit = evt.type === 'income';
       const sign = isCredit ? '+' : '-';
       const amtColor = isCredit ? 'var(--success)' : 'var(--danger)';
       const balClass = evt.balance < 0 ? 'net-neg' : '';
+      const cardBadge = evt.onCard ? '<span class="account-badge">CC</span>' : '';
       rows += '<tr>'
         + '<td>' + formatDate(evt.date) + '</td>'
-        + '<td>' + escapeHtml(evt.name) + '</td>'
+        + '<td>' + escapeHtml(evt.name) + cardBadge + '</td>'
         + '<td style="color:' + amtColor + '">' + sign + '$' + evt.amount.toFixed(2) + '</td>'
-        + '<td class="' + balClass + '">$' + evt.balance.toFixed(2) + '</td>'
+        + (evt.onCard
+            ? '<td class="forecast-bal-unchanged" title="Card charge — does not affect checking until you pay the card">—</td>'
+            : '<td class="' + balClass + '">$' + evt.balance.toFixed(2) + '</td>')
         + '</tr>';
     });
 
     el.innerHTML = '<div class="forecast-summary" style="color:' + summaryColor + '">' + summaryText + '</div>'
+      + '<div class="forecast-note">' + startLine + '</div>'
+      + balanceHint
       + '<table class="month-table forecast-table">'
       + '<thead><tr><th>Date</th><th>Item</th><th>Amount</th><th>Proj. Balance</th></tr></thead>'
       + '<tbody>' + rows + '</tbody>'
-      + '</table>';
+      + '</table>'
+      + cardNote;
   }
 
   function renderReports() {
