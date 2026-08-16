@@ -409,10 +409,8 @@
     overflow-y: auto;
     padding-right: 5px;
   }
-  /* keep in sync with MOBILE_BREAKPOINT in <script> */
-  @media (max-width: 480px) {
-    .scroll-area { flex: none; overflow-y: visible; padding-right: 0; }
-  }
+  /* On mobile .scroll-area becomes the app's single scroll container; see the
+     .mobile-active > .scroll-area rule in the max-width:480px block below. */
   .scroll-area::-webkit-scrollbar { width: 6px; }
   .scroll-area::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
 
@@ -935,19 +933,39 @@
   /* ── Mobile ── */
   /* keep in sync with MOBILE_BREAKPOINT in <script> */
   @media (max-width: 480px) {
-    body { padding: 0; background: var(--bg-main); }
-    .app-container { gap: 0; padding-bottom: calc(var(--mobile-tabbar-h) + env(safe-area-inset-bottom, 8px)); }
+    /* On mobile the app is a fixed-height shell that never scrolls as a
+       whole: the page itself is locked (overflow:hidden) and the ONLY
+       scrolling element is .scroll-area inside the active panel. That means
+       the app header, the export banner, and each panel's own header/forms
+       are ordinary non-scrolling flex items — they physically cannot move,
+       so no position:sticky is involved anywhere on mobile. This replaced an
+       older sticky-based approach that scrolled the page and the panel as
+       two nested scrollers, which felt like it "stuck" when a gesture
+       chained from the inner scroller to the outer one at the ends. */
+    body {
+      padding: 0;
+      background: var(--bg-main);
+      height: 100vh;
+      height: 100dvh; /* dvh excludes mobile browser chrome; vh above is the fallback */
+      overflow: hidden;
+    }
+    .app-container {
+      gap: 0;
+      padding-bottom: calc(var(--mobile-tabbar-h) + env(safe-area-inset-bottom, 8px));
+      min-height: 0;
+      overflow: hidden;
+    }
 
     /* Header */
     .header {
       padding: 12px 14px 10px;
       border-radius: 0;
       border-top: none;
-      position: sticky;
-      top: 0;
+      flex-shrink: 0;
       z-index: var(--z-app-header);
       box-shadow: 0 2px 8px rgba(0,0,0,0.08);
     }
+    .export-reminder { flex-shrink: 0; }
     .header h1 { font-size: var(--text-lg); }
     .header-top { gap: 8px; }
     .header-actions { gap: 6px; flex-wrap: wrap; }
@@ -963,8 +981,11 @@
 
     /* Tab-based sections */
     .mobile-tabs { display: flex; }
-    .main-content { gap: 0; }
-    .panel {
+    .main-content { gap: 0; overflow: hidden; }
+    /* Each panel is a fixed-height flex column that does NOT scroll itself
+       (overflow:hidden). Its header child stays put and its .scroll-area
+       child is the single scroller. */
+    .panel, .reports-panel, .recon-panel {
       display: none;
       padding: var(--mobile-panel-pad-y) var(--mobile-panel-pad-x);
       border-radius: 0;
@@ -972,44 +993,13 @@
       flex: 1;
       min-height: 0;
       flex-direction: column;
-      overflow-y: auto;
-      -webkit-overflow-scrolling: touch;
+      overflow: hidden;
     }
-    /* display:block, not flex — WebKit/Safari has long-standing bugs where
-       position:sticky children (.mobile-sticky-top) misbehave inside a
-       display:flex; flex-direction:column scroll container: the sticky
-       header can render partially clipped or stop tracking scroll
-       correctly, only correcting itself on a forced reflow (e.g. switching
-       tabs and back). Nothing here actually needs flex — the two children
-       (.mobile-sticky-top, .scroll-area) just stack vertically either way,
-       since .scroll-area's own flex sizing is already neutralized at this
-       breakpoint (see .scroll-area rule above). */
-    .panel.mobile-active { display: block; }
-    .reports-panel {
-      display: none;
-      padding: var(--mobile-panel-pad-y) var(--mobile-panel-pad-x);
-      border-radius: 0;
-      box-shadow: none;
-      border-top: none;
-      flex: 1;
-      min-height: 0;
-      overflow-y: auto;
-      -webkit-overflow-scrolling: touch;
-    }
-    .reports-panel.mobile-active { display: block; }
-    .recon-panel {
-      display: none;
-      padding: var(--mobile-panel-pad-y) var(--mobile-panel-pad-x);
-      border-radius: 0;
-      box-shadow: none;
-      border-top: 4px solid var(--success);
-      flex-direction: column;
-      flex: 1;
-      min-height: 0;
-      overflow-y: auto;
-      -webkit-overflow-scrolling: touch;
-    }
-    .recon-panel.mobile-active { display: block; }
+    .reports-panel { border-top: none; }
+    .recon-panel { border-top: 4px solid var(--success); }
+    .panel.mobile-active,
+    .reports-panel.mobile-active,
+    .recon-panel.mobile-active { display: flex; }
     .recon-cards { flex-direction: column; gap: 12px; }
     .recon-card { flex: none; width: 100%; min-width: 0; }
     .recon-inputs input { width: 100%; flex: 1; }
@@ -1023,27 +1013,60 @@
        instead of squeezing next to the title and wrapping onto two lines. */
     .panel-header-actions { flex: 1 0 100%; gap: 6px; flex-wrap: nowrap; }
     .panel-header-actions button { flex: 1; font-size: var(--text-2xs); padding: 6px 4px; white-space: nowrap; }
-    /* Sticky wrapper keeps each panel's header (plus, for Envelopes/Ledger,
-       its quick-add form and filters) pinned while the rest of the panel's
-       content scrolls beneath it. Used by all four panels — Envelopes,
-       Ledger, Reconcile, Reports — so headers behave consistently. Each
-       target panel is its own scroll container (overflow-y:auto), so sticky
-       is relative to the panel itself, not the page — top:0 is correct here. */
+    /* Each panel's header block (plus, for Envelopes/Ledger, its quick-add
+       form and filters). It is a plain non-shrinking flex item — not
+       sticky — so it simply never moves while .scroll-area scrolls below it.
+       Used by all four panels so headers behave identically everywhere. */
     .mobile-sticky-top {
-      position: -webkit-sticky;
-      position: sticky;
-      top: calc(-1 * var(--mobile-panel-pad-y));
+      flex-shrink: 0;
       background: var(--bg-card);
       z-index: var(--z-content-sticky);
       margin: calc(-1 * var(--mobile-panel-pad-y)) calc(-1 * var(--mobile-panel-pad-x)) 0;
       padding: var(--mobile-panel-pad-y) var(--mobile-panel-pad-x) 6px;
     }
-    /* While a panel's expandable form (Add Transaction, Move Money) is open,
-       release sticky positioning so the full form is reachable by scrolling
-       instead of being clipped to panel height. */
+    /* An expandable form (Add Transaction, Move Money, Recurring) can easily
+       be taller than the screen. Since the panel itself never scrolls, an open
+       form takes over the panel and scrolls internally — the standard mobile
+       "sheet" pattern — so it is never cramped or clipped. The list below is
+       hidden while it is open; closing the form (the toggle button becomes
+       "✕ Cancel") brings the list straight back. Splitting the space instead
+       was tried and is worse: the form's natural height squeezes the list to
+       zero anyway, so it buys nothing and only shrinks the form. */
     .mobile-sticky-top.form-expanded {
-      position: static;
-      margin: calc(-1 * var(--mobile-panel-pad-y)) calc(-1 * var(--mobile-panel-pad-x)) 0;
+      display: flex;
+      flex-direction: column;
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow: hidden; /* the form child scrolls, not this block */
+    }
+    /* The title row stays pinned even in form mode, so the button that
+       dismisses the form ("✕ Cancel") is always on screen — scrolling the
+       whole header block would carry it out of reach. */
+    .mobile-sticky-top.form-expanded > .panel-header { flex-shrink: 0; }
+    .mobile-sticky-top.form-expanded > .collapsible-form {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior: contain;
+    }
+    /* The header's other quick-access controls (ledger search, the envelope
+       quick-add row) are noise while a form is open, and pinning them would
+       eat the form's space. */
+    .mobile-sticky-top.form-expanded > .ledger-search-row,
+    .mobile-sticky-top.form-expanded > #add-envelope-form { display: none; }
+    .mobile-sticky-top.form-expanded ~ .scroll-area { display: none; }
+
+    /* The one and only scrolling element on mobile. */
+    .panel.mobile-active > .scroll-area,
+    .reports-panel.mobile-active > .scroll-area,
+    .recon-panel.mobile-active > .scroll-area {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior: contain;
+      padding-right: 0;
     }
 
     /* Envelope form — compact on mobile */
@@ -1181,7 +1204,7 @@
             <button type="button" id="toggle-recurring-btn" class="secondary-btn">🔁 Recurring</button>
           </div>
         </div>
-        <div id="envelope-transfer-wrapper" style="display:none; margin-bottom:12px;">
+        <div id="envelope-transfer-wrapper" class="collapsible-form" style="display:none; margin-bottom:12px;">
           <form id="envelope-transfer-form">
           <div class="txn-form-grid">
             <div class="txn-field">
@@ -1209,7 +1232,7 @@
           <button type="submit" class="txn-submit-btn">Transfer</button>
           </form>
         </div>
-        <div id="recurring-wrapper" style="display:none; margin-bottom:12px;">
+        <div id="recurring-wrapper" class="collapsible-form" style="display:none; margin-bottom:12px;">
           <form id="add-recurring-form">
           <div class="txn-form-grid">
             <div class="txn-field txn-field-wide">
@@ -1276,7 +1299,7 @@
           <h2>Transaction History</h2>
           <button type="button" id="toggle-form-btn" class="secondary-btn" style="font-size:var(--text-sm); padding:6px 12px;">+ Add Transaction</button>
         </div>
-        <div id="txn-form-wrapper" style="display:none; margin-bottom:12px;">
+        <div id="txn-form-wrapper" class="collapsible-form" style="display:none; margin-bottom:12px;">
         <form id="add-transaction-form">
         <div class="txn-form-grid">
           <div class="txn-field">
@@ -2005,6 +2028,21 @@
     render();
   });
 
+  // A panel's header block can host more than one collapsible form (Envelopes
+  // has both Move Money and Recurring). On mobile the header only takes over
+  // the panel — scrolling internally, hiding the list — while at least one of
+  // them is actually open, so this has to reflect ALL of the panel's forms.
+  // Toggling one form used to blindly overwrite the shared flag, which left
+  // an still-open form clipped once the other one was closed.
+  function syncPanelFormExpanded(panelId) {
+    const panel = document.getElementById(panelId);
+    const stickyTop = panel && panel.querySelector('.mobile-sticky-top');
+    if (!stickyTop) return;
+    const anyOpen = [...stickyTop.querySelectorAll('.collapsible-form')]
+      .some(el => el.style.display !== 'none');
+    stickyTop.classList.toggle('form-expanded', anyOpen);
+  }
+
   // Toggle entry form
   const txnFormWrapper = document.getElementById('txn-form-wrapper');
   const toggleFormBtn = document.getElementById('toggle-form-btn');
@@ -2015,10 +2053,7 @@
     txnFormWrapper.style.display = open ? 'none' : 'block';
     toggleFormBtn.textContent = open ? '+ Add Transaction' : '✕ Cancel';
     if (filterBar) filterBar.style.display = open ? '' : 'none';
-    // While the form is expanded, the sticky wrapper would grow taller than the
-    // panel and clip content — temporarily release it from sticky so it scrolls normally.
-    const stickyTop = document.querySelector('#panel-ledger .mobile-sticky-top');
-    if (stickyTop) stickyTop.classList.toggle('form-expanded', !open);
+    syncPanelFormExpanded('panel-ledger');
   });
 
   // ── Envelope Transfer (Move Money) ──
@@ -2033,10 +2068,7 @@
     transferWrapper.style.display = open ? 'none' : 'block';
     toggleTransferBtn.textContent = open ? '⇄ Move Money' : '✕ Cancel';
     if (!open) { renderTransferDropdowns(); transferErrorEl.style.display = 'none'; }
-    // Same reasoning as the Ledger's Add Transaction form: while Move Money
-    // is expanded, release the sticky wrapper so it doesn't clip the form.
-    const stickyTop = document.querySelector('#panel-envelopes .mobile-sticky-top');
-    if (stickyTop) stickyTop.classList.toggle('form-expanded', !open);
+    syncPanelFormExpanded('panel-envelopes');
   });
 
   function renderTransferDropdowns() {
@@ -2061,9 +2093,7 @@
     recurringWrapper.style.display = open ? 'none' : 'block';
     toggleRecurringBtn.textContent = open ? '🔁 Recurring' : '✕ Cancel';
     if (!open) document.getElementById('recur-next-date').value = document.getElementById('recur-next-date').value || todayISO();
-    // Same reasoning as Move Money: release the sticky wrapper while this form is expanded.
-    const stickyTop = document.querySelector('#panel-envelopes .mobile-sticky-top');
-    if (stickyTop) stickyTop.classList.toggle('form-expanded', !open);
+    syncPanelFormExpanded('panel-envelopes');
   });
 
   function renderRecurEnvelopeDropdown() {
