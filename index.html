@@ -336,6 +336,8 @@
   }
 
   .panel-header h2 { font-size: var(--text-lg); color: var(--accent); }
+  .panel-header-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .panel-header-actions button { font-size: var(--text-sm); padding: 6px 12px; }
 
   /* Inputs and Buttons */
   .form-group {
@@ -1010,8 +1012,13 @@
 
     /* Panel headers */
     .panel-header h2 { font-size: var(--text-base); }
-    .panel-header { margin-bottom: 6px; padding-bottom: 6px; }
+    .panel-header { margin-bottom: 6px; padding-bottom: 6px; flex-wrap: wrap; row-gap: 6px; }
     .panel.mobile-active .panel-header { padding-top: 4px; }
+    /* Envelopes header has two toggle buttons (Move Money, Recurring) — drop
+       them to their own full-width row so they sit side by side on one line
+       instead of squeezing next to the title and wrapping onto two lines. */
+    .panel-header-actions { flex: 1 0 100%; gap: 6px; flex-wrap: nowrap; }
+    .panel-header-actions button { flex: 1; font-size: var(--text-2xs); padding: 6px 4px; white-space: nowrap; }
     /* Sticky wrapper keeps each panel's header (plus, for Envelopes/Ledger,
        its quick-add form and filters) pinned while the rest of the panel's
        content scrolls beneath it. Used by all four panels — Envelopes,
@@ -1164,9 +1171,9 @@
       <div class="mobile-sticky-top">
         <div class="panel-header">
           <h2>Envelopes & Paycheck Goals</h2>
-          <div style="display:flex; gap:8px; flex-wrap:wrap;">
-            <button type="button" id="toggle-transfer-btn" class="secondary-btn" style="font-size:var(--text-sm); padding:6px 12px;">⇄ Move Money</button>
-            <button type="button" id="toggle-recurring-btn" class="secondary-btn" style="font-size:var(--text-sm); padding:6px 12px;">🔁 Recurring</button>
+          <div class="panel-header-actions">
+            <button type="button" id="toggle-transfer-btn" class="secondary-btn">⇄ Move Money</button>
+            <button type="button" id="toggle-recurring-btn" class="secondary-btn">🔁 Recurring</button>
           </div>
         </div>
         <div id="envelope-transfer-wrapper" style="display:none; margin-bottom:12px;">
