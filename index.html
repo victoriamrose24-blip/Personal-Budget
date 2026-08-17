@@ -2047,8 +2047,14 @@
     
     const id = Date.now().toString();
     const goalVal = roundMoney(parseFloat(goalInput.value) || 0);
-    
-    state.envelopes[id] = { name: nameInput.value, balance: 0, goal: goalVal };
+
+    // `required` only rejects an empty value, so a name of spaces slips
+    // through and creates a blank, unidentifiable entry. Clearing the field
+    // first makes the browser's own validation message do the explaining.
+    const envName = nameInput.value.trim();
+    if (!envName) { nameInput.value = ''; nameInput.reportValidity(); return; }
+
+    state.envelopes[id] = { name: envName, balance: 0, goal: goalVal };
     nameInput.value = ''; goalInput.value = '';
 
     saveState();
@@ -2065,9 +2071,15 @@
     const frequencyInput = document.getElementById('recur-frequency');
     const dateInput = document.getElementById('recur-next-date');
 
+    // Same reasoning as the envelope form: `required` lets a name of spaces
+    // through, which would store a nameless item that also can never match a
+    // real transaction in the forecast.
+    const recurName = nameInput.value.trim();
+    if (!recurName) { nameInput.value = ''; nameInput.reportValidity(); return; }
+
     state.recurring.push({
       id: Date.now().toString() + Math.random(),
-      name: nameInput.value.trim(),
+      name: recurName,
       type: typeInput.value,
       amount: roundMoney(parseFloat(amountInput.value) || 0),
       envelopeId: envelopeInput.value,
@@ -2565,7 +2577,12 @@
     e.preventDefault();
     const type = document.getElementById('txn-type').value;
     const account = document.getElementById('txn-account').value;
-    const payee = document.getElementById('txn-payee').value;
+    // Trimmed for the same reason as the envelope and recurring names, and
+    // additionally so payees differing only by stray spaces don't split into
+    // separate entries in the autocomplete and the spending reports.
+    const payeeInput = document.getElementById('txn-payee');
+    const payee = payeeInput.value.trim();
+    if (!payee) { payeeInput.value = ''; payeeInput.reportValidity(); return; }
     const dateVal = document.getElementById('txn-date').value;
     const formattedDate = formatDate(dateVal);
     const note = document.getElementById('txn-note').value.trim();
@@ -4219,28 +4236,17 @@
   });
 
   // ── Desktop Tab Navigation ──
-  const desktopPanelMap = {
-    envelopes: document.getElementById('panel-envelopes'),
-    ledger:    document.getElementById('panel-ledger'),
-    recon:     document.getElementById('panel-recon'),
-    reports:   document.getElementById('panel-reports'),
-  };
-
-  function switchDesktopTab(tabName) {
-    Object.entries(desktopPanelMap).forEach(([name, el]) => {
-      if (!el) return;
-      el.classList.toggle('desktop-active', name === tabName);
-    });
-    document.querySelectorAll('.desktop-tab-btn').forEach(btn => {
-      btn.classList.toggle('active', btn.dataset.tab === tabName);
-    });
-  }
-
-  document.querySelectorAll('.desktop-tab-btn').forEach(btn => {
-    btn.addEventListener('click', () => switchDesktopTab(btn.dataset.tab));
-  });
-
-  // ── Mobile Tab Navigation ──
+  // ── Tab Navigation ──
+  // One source of truth for both tab bars. Which tab is open is a single
+  // piece of state, and BOTH the desktop and mobile flags are always kept in
+  // sync for it — the CSS decides which of the two is live at the current
+  // width (`.mobile-active` has no effect outside the mobile media query, and
+  // `.desktop-active` is neutralized inside it).
+  //
+  // Tracking them separately meant crossing the breakpoint dropped you on a
+  // different tab. That is not just a desktop window-resize edge case: a
+  // phone in landscape is wider than the mobile breakpoint, so simply
+  // rotating the device bounced you from, say, Reports back to Envelopes.
   const tabPanels = {
     envelopes: document.getElementById('panel-envelopes'),
     ledger:    document.getElementById('panel-ledger'),
@@ -4248,20 +4254,25 @@
     reports:   document.getElementById('panel-reports'),
   };
 
-  function switchTab(tabName) {
-    // Only apply on mobile
-    if (window.innerWidth > MOBILE_BREAKPOINT) return;
+  function setActiveTab(tabName) {
+    if (!tabPanels[tabName]) return;
     Object.entries(tabPanels).forEach(([name, el]) => {
       if (!el) return;
-      el.classList.toggle('mobile-active', name === tabName);
+      const isActive = name === tabName;
+      el.classList.toggle('desktop-active', isActive);
+      el.classList.toggle('mobile-active', isActive);
     });
-    document.querySelectorAll('.mobile-tab-btn').forEach(btn => {
+    document.querySelectorAll('.desktop-tab-btn, .mobile-tab-btn').forEach(btn => {
       btn.classList.toggle('active', btn.dataset.tab === tabName);
     });
   }
 
-  document.querySelectorAll('.mobile-tab-btn').forEach(btn => {
-    btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+  // Kept as names for the two entry points that read naturally at call sites.
+  const switchTab = setActiveTab;
+  const switchDesktopTab = setActiveTab;
+
+  document.querySelectorAll('.desktop-tab-btn, .mobile-tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => setActiveTab(btn.dataset.tab));
   });
 
   // Keep --mobile-tabbar-h in sync with the tab bar's real rendered height
@@ -4276,16 +4287,10 @@
     tabbarObserver.observe(mobileTabsEl);
   }
 
-  // Reset to show all panels on desktop resize
-  window.addEventListener('resize', () => {
-    if (window.innerWidth > MOBILE_BREAKPOINT) {
-      Object.values(tabPanels).forEach(el => { if (el) el.classList.remove('mobile-active'); });
-    } else {
-      // Re-apply active tab on resize back to mobile
-      const activeBtn = document.querySelector('.mobile-tab-btn.active');
-      if (activeBtn) switchTab(activeBtn.dataset.tab);
-    }
-  });
+  // No resize handling is needed to keep tabs correct: both the desktop and
+  // mobile flags are always set together (see setActiveTab), so crossing the
+  // breakpoint — including rotating a phone — just hands over to the other
+  // set of CSS rules with the same tab still open.
 
   // Initial render
   render();
@@ -4300,6 +4305,22 @@
   // ── PWA: Register Service Worker ──
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('budget-sw.js').catch(() => {});
+  }
+
+  // ── Ask the browser not to evict this app's data ──
+  // Every budget, transaction and receipt lives on this device only
+  // (localStorage + IndexedDB) with no server copy, so storage eviction means
+  // real data loss rather than a cache miss. By default an origin's storage is
+  // "best effort" and the browser may clear it under storage pressure; iOS is
+  // especially aggressive with script-writable storage. Requesting persistence
+  // exempts the origin. Installed PWAs are typically granted it silently, and
+  // a refusal is harmless — this is a best-effort upgrade, not a requirement,
+  // so nothing is surfaced to the user either way. Export remains the real
+  // backup, which the export-reminder banner already nags about.
+  if (navigator.storage && navigator.storage.persist) {
+    navigator.storage.persisted()
+      .then(already => (already ? true : navigator.storage.persist()))
+      .catch(() => {});
   }
 
 </script>
