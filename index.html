@@ -253,6 +253,15 @@
     -webkit-tap-highlight-color: transparent;
   }
   .export-reminder-dismiss:hover { color: var(--danger); }
+  /* Losing data is a louder problem than a stale backup, so this one reads as
+     an error rather than a nudge. */
+  .recovery-banner { background: var(--danger); border-bottom-color: var(--danger); color: #fff; }
+  .recovery-banner .export-reminder-text { color: #fff; }
+  .recovery-banner .export-reminder-icon { color: #fff; }
+  .recovery-banner .export-reminder-btn { background: #fff; color: var(--danger); }
+  .recovery-banner .export-reminder-btn:hover { background: rgba(255,255,255,0.85); }
+  .recovery-banner .export-reminder-dismiss { color: rgba(255,255,255,0.8); }
+  .recovery-banner .export-reminder-dismiss:hover { color: #fff; }
 
   /* Recon Panel */
   .recon-panel-header { margin-bottom: 10px; }
@@ -1292,6 +1301,32 @@
     </div>
   </div>
 
+  <!-- Shown only after saved data failed to parse. Downloading the kept copy
+       is the whole point of preserving it, so the button is right here. -->
+  <div id="recovery-banner" class="export-reminder recovery-banner" style="display:none;">
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="export-reminder-icon"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.29 3.86l-8.48 14.7A1.5 1.5 0 0 0 3.07 21h17.86a1.5 1.5 0 0 0 1.26-2.44l-8.48-14.7a1.5 1.5 0 0 0-2.52 0z"/></svg>
+    <span id="recovery-text" class="export-reminder-text"></span>
+    <button type="button" class="export-reminder-btn" onclick="downloadRecoveryCopy()">Download it</button>
+    <button type="button" class="export-reminder-dismiss" onclick="discardRecoveryCopy()" title="Discard the recovered copy" aria-label="Discard the recovered copy">
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+  </div>
+
+  <div id="storage-warning-banner" class="export-reminder" style="display:none;">
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="export-reminder-icon"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.29 3.86l-8.48 14.7A1.5 1.5 0 0 0 3.07 21h17.86a1.5 1.5 0 0 0 1.26-2.44l-8.48-14.7a1.5 1.5 0 0 0-2.52 0z"/></svg>
+    <span id="storage-warning-text" class="export-reminder-text"></span>
+    <button type="button" class="export-reminder-btn" onclick="document.getElementById('export-btn').click()">Export Now</button>
+  </div>
+
+  <div id="undo-import-banner" class="export-reminder" style="display:none;">
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="export-reminder-icon"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-15-6.7L3 13"/></svg>
+    <span id="undo-import-text" class="export-reminder-text"></span>
+    <button type="button" class="export-reminder-btn" onclick="undoImport()">Undo import</button>
+    <button type="button" class="export-reminder-dismiss" onclick="dismissUndoImport()" title="Keep the imported data" aria-label="Keep the imported data">
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+  </div>
+
   <div id="export-reminder-banner" class="export-reminder" style="display:none;">
     <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="export-reminder-icon"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.29 3.86l-8.48 14.7A1.5 1.5 0 0 0 3.07 21h17.86a1.5 1.5 0 0 0 1.26-2.44l-8.48-14.7a1.5 1.5 0 0 0-2.52 0z"/></svg>
     <span id="export-reminder-text" class="export-reminder-text"></span>
@@ -1846,6 +1881,21 @@
 
   // --- STATE MANAGEMENT ---
   const LOCAL_STORAGE_KEY = 'householdBudgetState';
+  const RECOVERY_KEY = 'householdBudgetRecovery';   // set aside when saved data won't parse
+  const PRE_IMPORT_KEY = 'householdBudgetPreImport'; // snapshot taken before an Import replaces everything
+
+  // Stamped onto the state and every export. normalizeState() below repairs
+  // older shapes by inference, which works but is guesswork; an explicit
+  // version makes future migrations deterministic instead, and lets this build
+  // recognise a file written by a NEWER version of the app rather than
+  // silently mangling fields it doesn't understand.
+  const SCHEMA_VERSION = 1;
+
+  // localStorage is capped per origin — measured at exactly 5.00MB here, and
+  // 5MB is the near-universal value. Used to warn before saves start failing
+  // rather than at the moment one does.
+  const LOCAL_STORAGE_BUDGET_BYTES = 5 * 1024 * 1024;
+  const STORAGE_WARN_RATIO = 0.8;
 
   // Brings an older/foreign state object up to the current schema: fills in
   // defaults introduced after the object may have been saved, and derives
@@ -1883,17 +1933,45 @@
       if (r.type === 'income' || r.account !== 'cc') r.account = 'checking';
       r.amount = roundMoney(parseFloat(r.amount) || 0);
     });
+    // Anything without a version predates versioning and has just been brought
+    // up to the current shape by the repairs above, so it is now current.
+    s.schemaVersion = SCHEMA_VERSION;
     return s;
   }
 
   const DEFAULT_STATE = { expectedBankBalance: 0, expectedCcBalance: 0, envelopes: {}, ledger: [], recurring: [] };
+
+  // Sets aside data that could not be parsed, BEFORE anything else writes to
+  // the same key. Unparseable JSON is usually still almost entirely readable
+  // text — a truncated write loses the tail, not the years of records before
+  // it — so it is very often recoverable by hand. It only stays recoverable if
+  // something keeps a copy: otherwise the next ordinary save silently
+  // overwrites the evidence and the loss becomes permanent.
+  //
+  // An existing copy is never replaced. A second failure usually happens after
+  // the app has already restarted empty, so the first copy is the valuable one.
+  function preserveCorruptState(raw) {
+    if (!raw) return false;
+    try {
+      if (localStorage.getItem(RECOVERY_KEY)) return true;
+      localStorage.setItem(RECOVERY_KEY, JSON.stringify({ savedAt: new Date().toISOString(), raw }));
+      return true;
+    } catch (err) {
+      return false; // out of room to keep it; nothing more we can do
+    }
+  }
+
   let state;
+  let savedState = null;
   try {
-    const savedState = localStorage.getItem(LOCAL_STORAGE_KEY);
+    savedState = localStorage.getItem(LOCAL_STORAGE_KEY);
     state = savedState ? JSON.parse(savedState) : { ...DEFAULT_STATE };
   } catch (err) {
+    const kept = preserveCorruptState(savedState);
     state = { ...DEFAULT_STATE };
-    alert('Your saved budget data could not be read (it may be corrupted) and could not be loaded. Starting with an empty budget — if you have an exported backup file, use Import to restore it.');
+    alert(kept
+      ? 'Your saved budget data could not be read (it may be corrupted), so the app has started with an empty budget.\n\nA copy of the unreadable data has been kept, and a banner at the top of the app lets you download it — most of your records are usually still recoverable from that file. If you have an exported backup, you can also use Import to restore it.'
+      : 'Your saved budget data could not be read (it may be corrupted) and could not be loaded. Starting with an empty budget — if you have an exported backup file, use Import to restore it.');
   }
   normalizeState(state);
 
@@ -1905,13 +1983,36 @@
     _flashTimer = setTimeout(() => el.classList.remove('show'), SAVE_TOAST_DURATION_MS);
   }
 
+  let _lastStateBytes = 0;
+
   function saveState() {
     try {
-      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(state));
+      const serialized = JSON.stringify(state);
+      localStorage.setItem(LOCAL_STORAGE_KEY, serialized);
+      _lastStateBytes = serialized.length;
       flashSaved();
+      renderStorageWarning();
     } catch (err) {
-      alert('This device is out of storage space for the budget app. The most recent change was NOT saved. Try closing and reopening the app, or freeing up device storage, then retry.');
+      // The change is still live in memory, so exporting now rescues it even
+      // though it could not be written to this device.
+      const exportNow = confirm('This device is out of storage space for the budget app, so your most recent change could NOT be saved.\n\nThe change is still loaded right now. Export a backup immediately to keep it — otherwise it will be lost when the app is closed.\n\nExport a backup now?');
+      if (exportNow) document.getElementById('export-btn').click();
     }
+  }
+
+  // Warns while there is still room to act. Without this the first sign of
+  // trouble is a save failing outright, with no notice at all.
+  function renderStorageWarning() {
+    const banner = document.getElementById('storage-warning-banner');
+    const textEl = document.getElementById('storage-warning-text');
+    if (!banner || !textEl) return;
+    const bytes = _lastStateBytes || JSON.stringify(state).length;
+    const ratio = bytes / LOCAL_STORAGE_BUDGET_BYTES;
+    if (ratio < STORAGE_WARN_RATIO) { banner.style.display = 'none'; return; }
+    textEl.textContent = `Your budget data is using about ${Math.round(ratio * 100)}% of the space this browser allows `
+      + `(${(bytes / 1024 / 1024).toFixed(1)} MB of ${(LOCAL_STORAGE_BUDGET_BYTES / 1024 / 1024).toFixed(0)} MB). `
+      + `Export a backup, then consider deleting some older transactions to free up room.`;
+    banner.style.display = 'flex';
   }
 
   // ── Receipt photo storage (IndexedDB) ──
@@ -2052,15 +2153,9 @@
     exportBtn.textContent = 'Preparing…';
     exportBtn.disabled = true;
     getAllReceiptsFromDB().then(receiptsMap => {
-      const exportObj = Object.assign({}, state, { __receipts: receiptsMap });
-      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportObj, null, 2));
-      const downloadAnchorNode = document.createElement('a');
-      downloadAnchorNode.setAttribute("href", dataStr);
+      const exportObj = Object.assign({}, state, { schemaVersion: SCHEMA_VERSION, __receipts: receiptsMap });
       const dateStr = new Date().toISOString().split('T')[0];
-      downloadAnchorNode.setAttribute("download", `budget_backup_${dateStr}.json`);
-      document.body.appendChild(downloadAnchorNode);
-      downloadAnchorNode.click();
-      downloadAnchorNode.remove();
+      downloadBlob(JSON.stringify(exportObj, null, 2), `budget_backup_${dateStr}.json`, 'application/json;charset=utf-8');
       state.lastExportDate = new Date().toISOString();
       saveState();
       renderExportReminder();
@@ -2083,6 +2178,32 @@
       try {
         const importedState = JSON.parse(event.target.result);
         if (importedState && importedState.envelopes && Array.isArray(importedState.ledger)) {
+          // A file written by a newer build may use fields this version does
+          // not understand; loading it would quietly drop or mangle them and
+          // then save that damage back. Better to stop and say so.
+          if (typeof importedState.schemaVersion === 'number' && importedState.schemaVersion > SCHEMA_VERSION) {
+            alert(`This backup was created by a newer version of the app (format ${importedState.schemaVersion}; this version understands ${SCHEMA_VERSION}).\n\nIt has NOT been loaded, because importing it here could discard data this version doesn't recognise. Open it with the newer version instead.`);
+            importFileEl.value = '';
+            return;
+          }
+
+          // Import replaces everything, so make the trade explicit and keep a
+          // snapshot to undo it. Counts come first: "replace 8 envelopes and
+          // 1,240 transactions" is a decision, "are you sure?" is not.
+          const curEnv = Object.keys(state.envelopes).length;
+          const curTxn = state.ledger.length;
+          const newEnv = Object.keys(importedState.envelopes).length;
+          const newTxn = importedState.ledger.length;
+          if (curEnv || curTxn) {
+            const ok = confirm(
+              `Replace everything currently in the app?\n\n`
+              + `Now:      ${curEnv} envelope(s), ${curTxn} transaction(s)\n`
+              + `Backup:   ${newEnv} envelope(s), ${newTxn} transaction(s)\n\n`
+              + `The current data will be replaced. A snapshot is kept so you can undo this straight afterwards.`);
+            if (!ok) { importFileEl.value = ''; return; }
+          }
+          snapshotBeforeImport();
+
           const receiptsMap = importedState.__receipts || {};
           delete importedState.__receipts;
           const receiptIds = Object.keys(receiptsMap);
@@ -2105,6 +2226,7 @@
           restoreReceipts.then(() => {
             saveState();
             render();
+            renderUndoImportBanner();
             alert('Backup loaded successfully!' + (receiptIds.length ? ` ${receiptIds.length} receipt photo(s) restored.` : ''));
           });
         } else {
@@ -3092,6 +3214,109 @@
     }
   }
 
+  // Hands a file to the browser without going through a data: URL. The CSV
+  // export already worked this way; data: URLs additionally carry size limits
+  // that vary by browser, which a long-lived archive would eventually meet.
+  function downloadBlob(text, filename, mime) {
+    const blob = new Blob([text], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    // Revoked on a later tick: revoking synchronously can cancel the download
+    // in some browsers before it has started reading the blob.
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  }
+
+  // ── Recovery of unreadable saved data ──
+  function renderRecoveryBanner() {
+    const banner = document.getElementById('recovery-banner');
+    const textEl = document.getElementById('recovery-text');
+    if (!banner || !textEl) return;
+    let entry = null;
+    try { entry = JSON.parse(localStorage.getItem(RECOVERY_KEY) || 'null'); } catch (e) { entry = null; }
+    if (!entry || !entry.raw) { banner.style.display = 'none'; return; }
+    const when = entry.savedAt ? formatDate(String(entry.savedAt).slice(0, 10)) : 'earlier';
+    const kb = Math.max(1, Math.round(entry.raw.length / 1024));
+    textEl.textContent = `Budget data that could not be read was set aside on ${when} (${kb} KB). Download it before discarding — most records are usually still readable inside it.`;
+    banner.style.display = 'flex';
+  }
+
+  window.downloadRecoveryCopy = function() {
+    let entry = null;
+    try { entry = JSON.parse(localStorage.getItem(RECOVERY_KEY) || 'null'); } catch (e) { entry = null; }
+    if (!entry || !entry.raw) { alert('There is no recovered copy to download.'); return; }
+    downloadBlob(entry.raw, `budget_unreadable_data_${String(entry.savedAt || '').slice(0, 10) || 'copy'}.txt`, 'text/plain;charset=utf-8');
+  };
+
+  window.discardRecoveryCopy = function() {
+    if (!confirm('Discard the set-aside copy of the unreadable data?\n\nThis cannot be undone. If you have not downloaded it yet, anything still recoverable from it will be lost.')) return;
+    localStorage.removeItem(RECOVERY_KEY);
+    renderRecoveryBanner();
+  };
+
+  // ── Undo an import ──
+  // The snapshot is written to localStorage so it survives a reload, but a
+  // large budget plus its snapshot can exceed the quota; when that happens the
+  // in-memory copy still covers the case that matters most — noticing straight
+  // away that the wrong file was loaded.
+  let _preImportMemory = null;
+
+  function snapshotBeforeImport() {
+    const snapshot = JSON.stringify({ savedAt: new Date().toISOString(), state });
+    _preImportMemory = snapshot;
+    try { localStorage.setItem(PRE_IMPORT_KEY, snapshot); }
+    catch (err) { /* no room for both; the in-memory copy stands in */ }
+  }
+
+  function readPreImportSnapshot() {
+    let raw = null;
+    try { raw = localStorage.getItem(PRE_IMPORT_KEY); } catch (e) { raw = null; }
+    raw = raw || _preImportMemory;
+    if (!raw) return null;
+    try { return JSON.parse(raw); } catch (e) { return null; }
+  }
+
+  function clearPreImportSnapshot() {
+    _preImportMemory = null;
+    try { localStorage.removeItem(PRE_IMPORT_KEY); } catch (e) { /* nothing to do */ }
+  }
+
+  function renderUndoImportBanner() {
+    const banner = document.getElementById('undo-import-banner');
+    const textEl = document.getElementById('undo-import-text');
+    if (!banner || !textEl) return;
+    const snap = readPreImportSnapshot();
+    if (!snap || !snap.state) { banner.style.display = 'none'; return; }
+    const envCount = Object.keys(snap.state.envelopes || {}).length;
+    const txnCount = (snap.state.ledger || []).length;
+    textEl.textContent = `A backup was imported. Your previous data (${envCount} envelope(s), ${txnCount} transaction(s)) was saved first and can still be restored.`;
+    banner.style.display = 'flex';
+  }
+
+  window.undoImport = function() {
+    const snap = readPreImportSnapshot();
+    if (!snap || !snap.state) { alert('There is no pre-import snapshot to restore.'); return; }
+    if (!confirm('Restore the data from before the import?\n\nThe imported data will be replaced by what was in the app beforehand.')) return;
+    state = snap.state;
+    normalizeState(state);
+    actualBankInput.value = (state.expectedBankBalance || 0).toFixed(2);
+    actualCcInput.value = (state.expectedCcBalance || 0).toFixed(2);
+    clearPreImportSnapshot();
+    saveState();
+    render();
+    renderUndoImportBanner();
+    alert('Your previous data has been restored.\n\nNote: receipt photos from the imported file may still be stored on this device, but they are only shown for transactions that reference them.');
+  };
+
+  window.dismissUndoImport = function() {
+    clearPreImportSnapshot();
+    renderUndoImportBanner();
+  };
+
   window.dismissExportReminder = function() {
     _exportReminderDismissed = true;
     const banner = document.getElementById('export-reminder-banner');
@@ -3100,6 +3325,9 @@
 
   function render() {
     renderExportReminder();
+    renderRecoveryBanner();
+    renderUndoImportBanner();
+    renderStorageWarning();
     const unallocated = computeUnallocated();
     unallocatedEl.textContent = unallocated.toFixed(2);
     const pill = unallocatedEl.closest('.unallocated');
