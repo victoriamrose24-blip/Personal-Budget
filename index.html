@@ -179,16 +179,41 @@
     flex-wrap: wrap;
   }
 
+  /* The headline number of the whole app, so it leads the header rather than
+     trailing four admin buttons. */
   .unallocated {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
     background: var(--primary);
-    padding: 10px 20px;
+    padding: 8px 18px;
     border-radius: 20px;
-    font-weight: bold;
     color: #fff;
-    font-size: var(--text-lg);
     text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
-    margin-left: 10px;
+    margin-right: auto;
   }
+  .unallocated-label { font-size: var(--text-2xs); font-weight: 600; opacity: 0.85; letter-spacing: 0.03em; }
+  .unallocated-value { font-size: var(--text-xl); font-weight: 800; line-height: 1.1; }
+
+  .header-menu-btn { font-size: var(--text-lg); font-weight: 700; line-height: 1; padding: 8px 14px; }
+  .header-menu {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    padding-top: 12px;
+    margin-top: 4px;
+    border-top: 1px solid var(--border);
+  }
+  .header-menu-item {
+    background: transparent;
+    color: var(--text-main);
+    border: 1px solid var(--border);
+    font-size: var(--text-sm);
+    padding: 8px 14px;
+  }
+  .header-menu-item:hover { background: var(--border); }
+  .header-menu-danger { color: var(--danger); border-color: var(--danger); }
+  .header-menu-danger:hover { background: var(--danger); color: #fff; }
 
   /* Export Reminder Banner */
   .export-reminder {
@@ -433,6 +458,44 @@
   
   .envelope-actions { display: flex; gap: 8px; align-items: center; }
   .env-balance { font-size: var(--text-md); min-width: 65px; text-align: right; }
+
+  /* Funding progress. On desktop the row is a flex row, so the bar takes the
+     space between the name and the actions; on mobile the row stacks and it
+     spans the full width (see the mobile block). */
+  .env-progress {
+    flex: 1 1 60px;
+    max-width: 220px;
+    height: 6px;
+    margin: 0 14px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .env-progress-fill { height: 100%; border-radius: 3px; transition: width 0.2s; }
+
+  .env-more-btn {
+    background: transparent;
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+    font-size: var(--text-sm);
+    font-weight: 700;
+    line-height: 1;
+    padding: 6px 10px;
+    white-space: nowrap;
+  }
+  .env-more-btn:hover { background: var(--border); color: var(--text-main); }
+  .env-menu-row { display: flex; gap: 6px; align-items: center; width: 100%; margin-top: 6px; flex-wrap: wrap; }
+  .env-menu-btn {
+    background: transparent;
+    color: var(--text-main);
+    border: 1px solid var(--border);
+    font-size: var(--text-xs);
+    padding: 6px 10px;
+    white-space: nowrap;
+  }
+  .env-menu-btn:hover { background: var(--border); }
+  .env-menu-danger { color: var(--danger); border-color: var(--danger); }
+  .env-menu-danger:hover { background: var(--danger); color: #fff; }
   
   .fund-input-row { display: flex; gap: 6px; align-items: center; width: 100%; margin-top: 6px; }
   .fund-input-row input { flex: 1; padding: 6px 8px; font-size: var(--text-sm); min-width: 0; }
@@ -708,6 +771,30 @@
     display: inline-flex; align-items: center; flex-shrink: 0; -webkit-tap-highlight-color: transparent;
   }
   .ledger-search-clear-btn:hover { color: var(--danger); }
+
+  .filters-toggle-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: transparent;
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+    font-size: var(--text-sm);
+    padding: 7px 12px;
+    margin-bottom: 8px;
+  }
+  .filters-toggle-btn:hover,
+  .filters-toggle-btn[aria-expanded="true"] { background: var(--border); color: var(--text-main); }
+  .filter-count-badge {
+    background: var(--primary);
+    color: #fff;
+    font-size: var(--text-2xs);
+    font-weight: 700;
+    min-width: 18px;
+    padding: 1px 5px;
+    border-radius: 9px;
+    text-align: center;
+  }
 
   .ledger-filters {
     display: flex;
@@ -1070,7 +1157,9 @@
        quick-add row) are noise while a form is open, and pinning them would
        eat the form's space. */
     .mobile-sticky-top.form-expanded > .ledger-search-row,
+    .mobile-sticky-top.form-expanded > .filters-toggle-btn,
     .mobile-sticky-top.form-expanded > #add-envelope-form { display: none; }
+    .filters-toggle-btn { width: 100%; justify-content: center; }
     .mobile-sticky-top.form-expanded ~ .scroll-area { display: none; }
 
     /* The one and only scrolling element on mobile. */
@@ -1104,10 +1193,22 @@
     .envelope-goal { font-size: var(--text-2xs); white-space: nowrap; flex-shrink: 0; }
     .envelope-actions { display: flex; align-items: center; gap: 5px; width: 100%; }
     .env-balance { font-size: var(--text-sm); font-weight: 700; min-width: 60px; }
-    .fund-btn { flex: 1; font-size: var(--text-2xs); padding: 6px 4px; text-align: center; }
-    .quick-fund-btn { flex: 1; font-size: var(--text-2xs); padding: 6px 4px; text-align: center; }
-    .envelope-actions .edit-btn { padding: 6px 8px; font-size: var(--text-2xs); flex-shrink: 0; }
-    .envelope-actions .delete-btn { padding: 6px 8px; font-size: var(--text-2xs); flex-shrink: 0; }
+    /* Sized to its label, not stretched: it used to share the row with a
+       second fund button, and left on flex:1 alone it swallows the row. */
+    .fund-btn, .quick-fund-btn { flex: 0 1 auto; font-size: var(--text-2xs); padding: 7px 14px; text-align: center; }
+    .env-more-btn { margin-left: auto; }
+    /* Row stacks on mobile, so the bar spans the full width instead of
+       sitting between the name and the buttons. */
+    .env-progress { flex: none; max-width: none; width: 100%; margin: 0; }
+    .env-more-btn { padding: 6px 10px; font-size: var(--text-2xs); flex-shrink: 0; }
+    .env-menu-btn { flex: 1; font-size: var(--text-2xs); padding: 7px 4px; text-align: center; }
+
+    /* Clear the bottom tab bar — at the default offset the toast sits on top
+       of the rightmost tab (Reports) after every save. */
+    .save-flash {
+      bottom: calc(var(--mobile-tabbar-h) + env(safe-area-inset-bottom, 8px) + 12px);
+      right: 14px;
+    }
 
     /* Recurring items — same two-row mobile layout as envelopes */
     .recurring-list { gap: 5px; }
@@ -1173,15 +1274,22 @@
     <div class="header-top">
       <h1>Household Budget</h1>
       <div class="header-actions">
+        <div class="unallocated"><span class="unallocated-label">Left to Assign</span><span class="unallocated-value">$<span id="unallocated-amount">0.00</span></span></div>
         <button type="button" id="theme-toggle-btn" class="secondary-btn theme-toggle-btn" title="Switch to dark mode" aria-label="Switch to dark mode"></button>
-        <button id="export-btn" class="secondary-btn" title="Download backup file">Export</button>
-        <button id="import-btn" class="secondary-btn" title="Load backup file">Import</button>
-        <input type="file" id="import-file" accept=".json" style="display: none;">
-        <button id="reset-btn" class="secondary-btn" title="Clear all data">Reset Data</button>
-        <div class="unallocated">Left to Assign: $<span id="unallocated-amount">0.00</span></div>
+        <button type="button" id="header-menu-btn" class="secondary-btn header-menu-btn" title="More actions" aria-label="More actions" aria-expanded="false" aria-controls="header-menu">⋯</button>
       </div>
     </div>
-    
+    <!-- Backup/reset actions live behind "⋯": they are occasional, and Reset
+         Data is irreversible, so it should not sit permanently one tap from
+         Import. This is a disclosure panel that expands the header rather than
+         an overlay, because the mobile shell is a fixed-height overflow:hidden
+         container that would clip a dropdown. -->
+    <div class="header-menu" id="header-menu" style="display:none;">
+      <button id="export-btn" class="header-menu-item" title="Download backup file">Export backup</button>
+      <button id="import-btn" class="header-menu-item" title="Load backup file">Import backup</button>
+      <input type="file" id="import-file" accept=".json" style="display: none;">
+      <button id="reset-btn" class="header-menu-item header-menu-danger" title="Clear all data">Reset data</button>
+    </div>
   </div>
 
   <div id="export-reminder-banner" class="export-reminder" style="display:none;">
@@ -1396,7 +1504,12 @@
           <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>
       </div>
-      <div class="ledger-filters">
+      <button type="button" id="toggle-filters-btn" class="filters-toggle-btn" aria-expanded="false" aria-controls="ledger-filters">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="7" y1="12" x2="17" y2="12"/><line x1="10" y1="18" x2="14" y2="18"/></svg>
+        <span>Filters</span>
+        <span id="filter-count-badge" class="filter-count-badge" style="display:none;">0</span>
+      </button>
+      <div class="ledger-filters" id="ledger-filters" style="display:none;">
         <select id="filter-month" aria-label="Filter by month">
           <option value="">All Time</option>
         </select>
@@ -1694,6 +1807,33 @@
     }
     updateThemeToggleButton();
   }
+
+  // ── Header overflow menu ──
+  const headerMenu = document.getElementById('header-menu');
+  const headerMenuBtn = document.getElementById('header-menu-btn');
+
+  function setHeaderMenuOpen(open) {
+    headerMenu.style.display = open ? 'flex' : 'none';
+    headerMenuBtn.setAttribute('aria-expanded', String(open));
+  }
+
+  headerMenuBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    setHeaderMenuOpen(headerMenu.style.display === 'none');
+  });
+  // Any click outside, or Escape, closes it. Clicks on the menu's own buttons
+  // close it too — each of them opens a dialog or file picker of its own.
+  document.addEventListener('click', (e) => {
+    if (headerMenu.style.display === 'none') return;
+    if (!headerMenu.contains(e.target) && e.target !== headerMenuBtn) setHeaderMenuOpen(false);
+    else if (e.target.classList.contains('header-menu-item')) setHeaderMenuOpen(false);
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && headerMenu.style.display !== 'none') {
+      setHeaderMenuOpen(false);
+      headerMenuBtn.focus();
+    }
+  });
 
   document.getElementById('theme-toggle-btn').addEventListener('click', () => {
     const next = isDarkThemeActive() ? 'light' : 'dark';
@@ -2010,11 +2150,39 @@
   let filterSearch = '';
   let sortBy = 'date-desc';
 
-  document.getElementById('filter-month').addEventListener('change', e => { filterMonth = e.target.value; renderLedger(); });
-  document.getElementById('filter-type').addEventListener('change', e => { filterType = e.target.value; renderLedger(); });
-  document.getElementById('filter-account').addEventListener('change', e => { filterAccount = e.target.value; renderLedger(); });
-  document.getElementById('filter-envelope').addEventListener('change', e => { filterEnvelope = e.target.value; renderLedger(); });
-  document.getElementById('sort-by').addEventListener('change', e => { sortBy = e.target.value; renderLedger(); });
+  // The five filter dropdowns are collapsed by default: expanded they cost
+  // ~150px of permanently-fixed header on a phone, which is a steep price for
+  // controls most visits never touch. The badge keeps them honest — if a
+  // filter is narrowing what you see, the count says so even while collapsed.
+  let _filtersOpen = false;
+
+  function countActiveFilters() {
+    let n = 0;
+    if (filterMonth !== _curMonth) n++;
+    if (filterType) n++;
+    if (filterAccount) n++;
+    if (filterEnvelope) n++;
+    if (sortBy !== 'date-desc') n++;
+    return n;
+  }
+
+  function syncFilterBar() {
+    const formOpen = txnFormWrapper.style.display !== 'none';
+    // Setting '' (rather than a literal) lets the stylesheet pick flex on
+    // desktop and grid on mobile.
+    if (filterBar) filterBar.style.display = (_filtersOpen && !formOpen) ? '' : 'none';
+    toggleFiltersBtn.style.display = formOpen ? 'none' : '';
+    toggleFiltersBtn.setAttribute('aria-expanded', String(_filtersOpen && !formOpen));
+    const n = countActiveFilters();
+    filterCountBadge.textContent = n;
+    filterCountBadge.style.display = n ? '' : 'none';
+  }
+
+  document.getElementById('filter-month').addEventListener('change', e => { filterMonth = e.target.value; syncFilterBar(); renderLedger(); });
+  document.getElementById('filter-type').addEventListener('change', e => { filterType = e.target.value; syncFilterBar(); renderLedger(); });
+  document.getElementById('filter-account').addEventListener('change', e => { filterAccount = e.target.value; syncFilterBar(); renderLedger(); });
+  document.getElementById('filter-envelope').addEventListener('change', e => { filterEnvelope = e.target.value; syncFilterBar(); renderLedger(); });
+  document.getElementById('sort-by').addEventListener('change', e => { sortBy = e.target.value; syncFilterBar(); renderLedger(); });
   document.getElementById('ledger-search').addEventListener('input', e => {
     filterSearch = e.target.value.trim().toLowerCase();
     document.getElementById('ledger-search-clear').style.display = filterSearch ? '' : 'none';
@@ -2037,6 +2205,7 @@
     document.getElementById('sort-by').value = 'date-desc';
     document.getElementById('ledger-search').value = '';
     document.getElementById('ledger-search-clear').style.display = 'none';
+    syncFilterBar();
     renderLedger();
   });
 
@@ -2115,14 +2284,23 @@
   const txnFormWrapper = document.getElementById('txn-form-wrapper');
   const toggleFormBtn = document.getElementById('toggle-form-btn');
   const filterBar = document.querySelector('.ledger-filters');
+  const toggleFiltersBtn = document.getElementById('toggle-filters-btn');
+  const filterCountBadge = document.getElementById('filter-count-badge');
+
+  toggleFiltersBtn.addEventListener('click', () => {
+    _filtersOpen = !_filtersOpen;
+    syncFilterBar();
+  });
 
   toggleFormBtn.addEventListener('click', () => {
     const open = txnFormWrapper.style.display !== 'none';
     txnFormWrapper.style.display = open ? 'none' : 'block';
     toggleFormBtn.textContent = open ? '+ Add Transaction' : '✕ Cancel';
-    if (filterBar) filterBar.style.display = open ? '' : 'none';
+    syncFilterBar();
     syncPanelFormExpanded('panel-ledger');
   });
+
+  syncFilterBar();
 
   // ── Envelope Transfer (Move Money) ──
   const transferWrapper = document.getElementById('envelope-transfer-wrapper');
@@ -2691,8 +2869,9 @@
   };
 
   window.showFundInput = function(id) {
-    // Hide any other open fund rows first
-    document.querySelectorAll('.fund-input-row').forEach(el => el.style.display = 'none');
+    // Hide any other open fund rows first — and the "⋯" menu, which is where
+    // this is launched from.
+    closeAllEnvRows();
     const row = document.getElementById('fund-row-' + id);
     if (row) {
       row.style.display = 'flex';
@@ -2940,23 +3119,47 @@
           const balanceStyle = `font-weight: ${isNegative ? 'bold' : 'normal'}; color: ${isNegative ? 'var(--danger)' : 'inherit'}`;
           
           const borderColor = env.balance < 0 ? 'var(--danger)' : 'var(--primary)';
-          let fundButtons = `<button class="fund-btn" onclick="showFundInput('${id}')">Custom Fund</button>`;
-          if (env.goal > 0) {
-            fundButtons = `<button class="quick-fund-btn" onclick="fundGoal('${id}')" title="Fund $${env.goal.toFixed(2)}">+ Fund Goal</button>` + fundButtons;
-          }
-    
+          // One primary action per row; the rest live behind "⋯" so eight
+          // envelopes don't stack up to thirty-odd competing buttons.
+          const primaryFundBtn = env.goal > 0
+            ? `<button class="quick-fund-btn" onclick="fundGoal('${id}')" title="Fund $${env.goal.toFixed(2)}">+ Fund Goal</button>`
+            : `<button class="fund-btn" onclick="showFundInput('${id}')">Fund</button>`;
+
           const goalHtml = env.goal > 0 ? '<span class="envelope-goal">Goal: $' + env.goal.toFixed(2) + ' / paycheck</span>' : '<span class="envelope-goal">No goal set</span>';
+
+          // Funding progress toward the per-paycheck goal. Envelope budgeting
+          // is really "how full is this envelope", which raw figures make you
+          // work out yourself, so show the fill directly. Overfunded clamps to
+          // a full bar; a negative balance shows empty and reads as overspent.
+          let progressHtml = '';
+          if (env.goal > 0) {
+            const ratio = env.balance / env.goal;
+            const pct = Math.max(0, Math.min(1, ratio)) * 100;
+            const fillColor = env.balance < 0 ? 'var(--danger)'
+              : ratio >= 1 ? 'var(--success)'
+              : ratio < ENVELOPE_HEALTH_WARN_RATIO ? 'var(--accent)' : 'var(--primary)';
+            const pctLabel = Math.round(ratio * 100);
+            progressHtml = `<div class="env-progress" role="img" aria-label="${pctLabel}% of $${env.goal.toFixed(2)} goal funded">`
+              + `<div class="env-progress-fill" style="width:${pct}%; background:${fillColor};"></div>`
+              + `</div>`;
+          }
+
           return `
           <div class="envelope-item" id="env-item-${id}" style="border-left-color: ${borderColor};">
             <div class="env-info">
               <span class="envelope-name">${escapeHtml(env.name)}</span>
               ${goalHtml}
             </div>
+            ${progressHtml}
             <div class="envelope-actions">
               <span class="env-balance" style="${balanceStyle}">$${env.balance.toFixed(2)}</span>
-              ${fundButtons}
-              <button class="edit-btn" onclick="openEnvEdit('${id}')" title="Edit Envelope">✎</button>
-              <button class="delete-btn" onclick="deleteEnvelope('${id}')" title="Delete Envelope">✕</button>
+              ${primaryFundBtn}
+              <button class="env-more-btn" onclick="toggleEnvMenu('${id}')" title="More actions" aria-label="More actions for ${escapeHtml(env.name)}" aria-expanded="false" aria-controls="env-menu-${id}">⋯</button>
+            </div>
+            <div class="env-menu-row" id="env-menu-${id}" style="display:none;">
+              ${env.goal > 0 ? `<button class="env-menu-btn" onclick="showFundInput('${id}')">Custom Fund</button>` : ''}
+              <button class="env-menu-btn" onclick="openEnvEdit('${id}')">Edit</button>
+              <button class="env-menu-btn env-menu-danger" onclick="deleteEnvelope('${id}')">Delete</button>
             </div>
             <div class="fund-input-row" id="fund-row-${id}" style="display:none;">
               <input type="number" id="fund-amount-${id}" placeholder="Amount" step="0.01" min="0.01" aria-label="Fund amount">
@@ -3512,9 +3715,28 @@
     }
   });
 
+  // Closes every per-envelope disclosure (fund input, inline edit, "⋯" menu)
+  // so only one is ever open at a time.
+  function closeAllEnvRows() {
+    document.querySelectorAll('.fund-input-row').forEach(el => el.style.display = 'none');
+    document.querySelectorAll('.env-menu-row').forEach(el => el.style.display = 'none');
+    document.querySelectorAll('.env-more-btn').forEach(btn => btn.setAttribute('aria-expanded', 'false'));
+  }
+
+  window.toggleEnvMenu = function(id) {
+    const row = document.getElementById('env-menu-' + id);
+    if (!row) return;
+    const wasOpen = row.style.display !== 'none';
+    closeAllEnvRows();
+    if (wasOpen) return;
+    row.style.display = 'flex';
+    const btn = document.querySelector(`#env-item-${CSS.escape(id)} .env-more-btn`);
+    if (btn) btn.setAttribute('aria-expanded', 'true');
+  };
+
   window.openEnvEdit = function(id) {
     // Close any open fund or edit rows first
-    document.querySelectorAll('.fund-input-row').forEach(el => el.style.display = 'none');
+    closeAllEnvRows();
     const row = document.getElementById('env-edit-row-' + id);
     if (row) {
       row.style.display = 'flex';
