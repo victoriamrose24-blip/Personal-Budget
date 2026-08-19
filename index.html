@@ -582,6 +582,7 @@
 
   .date-short { display: none; }
   .amt-short { display: none; }
+  .payee-short { display: none; }
   .col-running { width: 80px; text-align: right; white-space: nowrap; font-size: var(--text-xs); color: var(--text-muted); }
   .col-running.bal-neg { color: var(--danger); font-weight: 600; }
 
@@ -1250,6 +1251,8 @@
     .account-badge { display: none; }
     .amt-full { display: none; }
     .amt-short { display: inline; }
+    .payee-full { display: none; }
+    .payee-short { display: inline; }
     .action-cell { width: 52px; }
     .cleared-checkbox { width: 20px; height: 20px; }
     .delete-btn, .edit-btn { padding: 5px 6px; font-size: var(--text-2xs); }
@@ -3461,6 +3464,36 @@
     return `${months[parseInt(m, 10) - 1]} ${y}`;
   }
 
+  // Auto-generated funding and transfer payees put the boilerplate first and
+  // the envelope name last — which is the only part that identifies the row,
+  // and exactly what a narrow screen cuts off ("Paycheck Goal Funded → F…"
+  // could be Food, Fuel or Fun Money). These shorter forms are shown in place
+  // of the full text on mobile only; the stored payee is untouched, so
+  // exports, the tooltip and the edit row all still carry the full wording.
+  const FUNDING_LABEL_SHORTHAND = [
+    ['Paycheck Goal Funded', 'Goal'],
+    ['Manual Funding', 'Funded'],
+    ['Envelope Deleted', 'Deleted']
+  ];
+  const PAYEE_ARROW = ' → ';
+
+  // Returns null when there is nothing worth shortening — including payees the
+  // user has edited by hand, which must never be rewritten.
+  function shortenPayeeForMobile(txn) {
+    const payee = txn.payee || '';
+    if (txn.type === 'funding') {
+      for (const [longLabel, shortLabel] of FUNDING_LABEL_SHORTHAND) {
+        const prefix = longLabel + PAYEE_ARROW;
+        if (payee.startsWith(prefix)) return shortLabel + PAYEE_ARROW + payee.slice(prefix.length);
+      }
+      return null;
+    }
+    if (txn.type === 'envelope-transfer' && payee.startsWith('Transfer: ')) {
+      return payee.slice('Transfer: '.length);
+    }
+    return null;
+  }
+
   function renderLedger() {
     closeDetailPopover();
     // Build month filter options from all ledger months
@@ -3588,10 +3621,17 @@
       const detailLabel = txn.type === 'split' ? 'View split breakdown' : 'View note/receipt';
       const detailBtn = hasDetail ? `<button class="row-detail-btn" onclick="toggleDetailRow(event, '${txn.id}')" title="${detailLabel}" aria-label="${detailLabel}">${detailIconSvg}</button>` : '';
 
+      // Both forms are rendered and CSS picks one per breakpoint, matching how
+      // the date and amount columns already switch between full and short.
+      const shortPayee = shortenPayeeForMobile(txn);
+      const payeeHtml = shortPayee
+        ? `<span class="payee-full">${escapeHtml(txn.payee)}</span><span class="payee-short">${escapeHtml(shortPayee)}</span>`
+        : escapeHtml(txn.payee);
+
       return `
         <tr id="txn-row-${txn.id}">
           <td class="col-date"><span class="date-full">${txn.date}</span><span class="date-short">${txn.date.slice(0,5)}</span></td>
-          <td class="col-payee" title="${escapeHtml(txn.payee)}"><div class="payee-cell-inner"><span class="payee-text">${escapeHtml(txn.payee)}${accountBadge}</span>${detailBtn}</div></td>
+          <td class="col-payee" title="${escapeHtml(txn.payee)}"><div class="payee-cell-inner"><span class="payee-text">${payeeHtml}${accountBadge}</span>${detailBtn}</div></td>
           <td class="col-category">${catName}</td>
           <td class="col-amount">${amountHtml}</td>
           <td class="${runBal < 0 ? 'col-running bal-neg' : 'col-running'}">${(txn.type === 'funding' || txn.type === 'envelope-transfer') ? '—' : (runBal < 0 ? '-' : '') + '$' + Math.abs(runBal).toFixed(2)}</td>
