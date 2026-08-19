@@ -884,13 +884,6 @@
     align-items: start;
   }
   .report-card-wide { grid-column: 1 / -1; }
-  .health-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: var(--text-sm); }
-  .health-row:last-child { border-bottom: none; }
-  .health-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
-  .health-name { flex: 1; font-weight: 600; }
-  .health-status-label { font-weight: 700; font-size: var(--text-2xs); }
-  .health-balance { min-width: 70px; text-align: right; }
-  .health-goal { min-width: 70px; text-align: right; color: var(--text-muted); font-size: var(--text-xs); }
   .savings-rate-display { text-align: center; padding: 16px 0; }
   .savings-rate-pct { font-size: var(--text-display); font-weight: 800; }
   .savings-rate-label { font-size: var(--text-sm); color: var(--text-muted); margin-top: 4px; }
@@ -977,6 +970,8 @@
   .month-table .net-pos { color: var(--success); font-weight: bold; }
   .month-table .net-neg { color: var(--danger); font-weight: bold; }
   .report-empty { color: var(--text-muted); font-style: italic; font-size: var(--text-base); padding: 20px 0; text-align: center; }
+  /* Desktop shows every report in the grid, so the picker is mobile-only. */
+  .report-chips { display: none; }
   .forecast-summary { font-size: var(--text-sm); font-weight: 600; margin-bottom: 6px; }
   .forecast-note { font-size: var(--text-2xs); color: var(--text-muted); margin-bottom: 10px; line-height: 1.45; }
   .forecast-note-warn { color: var(--danger); font-weight: 600; }
@@ -1262,7 +1257,34 @@
     .edit-save-btn, .edit-cancel-btn { flex: 1 1 auto; }
     .edit-recur-btn { flex: 1 1 100%; margin-right: 0; order: -1; }
 
-    /* Reports */
+    /* Reports — one at a time, chosen by the chip row. The class is set
+       unconditionally by JS; only this breakpoint acts on it, so crossing the
+       breakpoint needs no resize handling. */
+    .report-chips {
+      display: flex;
+      gap: 6px;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+      padding-bottom: 2px;
+      margin-top: 8px;
+    }
+    .report-chips::-webkit-scrollbar { display: none; }
+    .report-chip {
+      flex: 0 0 auto;
+      background: transparent;
+      color: var(--text-muted);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      font-size: var(--text-xs);
+      font-weight: 600;
+      padding: 7px 14px;
+      white-space: nowrap;
+    }
+    .report-chip.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+    .report-card { display: none; }
+    .report-card.report-card-active { display: block; }
+
     .reports-body { grid-template-columns: 1fr; gap: 10px; }
     .report-card-wide { grid-column: 1; }
 
@@ -1663,6 +1685,16 @@
           <button class="csv-btn" id="csv-export-btn">⬇ Export CSV</button>
         </div>
       </div>
+      <!-- Mobile only: picks which single report is shown. Every name stays on
+           screen so nothing is forgotten about, unlike a dropdown. Hidden on
+           desktop, where the grid shows everything without scrolling. -->
+      <div class="report-chips" id="report-chips" role="tablist" aria-label="Choose a report">
+        <button type="button" class="report-chip" data-report="report-spending" role="tab">Spending</button>
+        <button type="button" class="report-chip" data-report="report-forecast" role="tab">Forecast</button>
+        <button type="button" class="report-chip" data-report="report-mom" role="tab">Monthly</button>
+        <button type="button" class="report-chip" data-report="report-savings" role="tab">Savings</button>
+        <button type="button" class="report-chip" data-report="report-cc-split" role="tab">CC vs Chk</button>
+      </div>
     </div>
     <div class="scroll-area">
     <div class="reports-body">
@@ -1677,10 +1709,6 @@
       <div class="report-card" id="report-cc-split">
         <h3>CC vs Checking Split</h3>
         <div id="cc-split-chart"></div>
-      </div>
-      <div class="report-card" id="report-envelope-health">
-        <h3>Envelope Health</h3>
-        <div id="envelope-health-chart"></div>
       </div>
       <div class="report-card report-card-wide" id="report-mom">
         <div class="report-card-header">
@@ -4299,34 +4327,6 @@
     </div>`;
   }
 
-  // ── ENVELOPE HEALTH ──
-  function renderEnvelopeHealth() {
-    const el = document.getElementById('envelope-health-chart');
-    const envs = Object.values(state.envelopes);
-    if (!envs.length) { el.innerHTML = '<div class="report-empty">No envelopes yet.</div>'; return; }
-    const sorted = [...envs].sort((a,b) => {
-      // Sort by health: negative first, then by % of goal
-      const aScore = a.goal > 0 ? a.balance/a.goal : (a.balance >= 0 ? 1 : -1);
-      const bScore = b.goal > 0 ? b.balance/b.goal : (b.balance >= 0 ? 1 : -1);
-      return aScore - bScore;
-    });
-    let healthHtml = '';
-    sorted.forEach(function(env) {
-      let color, dot, statusLabel;
-      if (env.balance < 0) { color = 'var(--danger)'; dot = 'var(--danger)'; statusLabel = 'Over'; }
-      else if (env.goal > 0 && env.balance < env.goal * ENVELOPE_HEALTH_WARN_RATIO) { color = 'var(--accent)'; dot = 'var(--accent)'; statusLabel = 'Low'; }
-      else { color = 'var(--success)'; dot = 'var(--success)'; statusLabel = 'On track'; }
-      const goalStr = env.goal > 0 ? 'Goal: $' + env.goal.toFixed(2) : 'No goal';
-      healthHtml += '<div class="health-row">'
-        + '<div class="health-dot" style="background:' + dot + '" title="' + statusLabel + '" aria-hidden="true"></div>'
-        + '<span class="health-name">' + escapeHtml(env.name) + '<span class="health-status-label" style="color:' + color + '"> (' + statusLabel + ')</span></span>'
-        + '<span class="health-balance" style="color:' + color + '">$' + env.balance.toFixed(2) + '</span>'
-        + '<span class="health-goal">' + goalStr + '</span>'
-        + '</div>';
-    });
-    el.innerHTML = healthHtml;
-  }
-
   // ── RECONCILE: CLEAR / UNCLEAR TRANSACTION LISTS ──
   const _clearedSectionOpen = { checking: false, cc: false };
 
@@ -4606,9 +4606,36 @@
     renderMomChart();
     renderSavingsRate(monthKey);
     renderCCSplit(monthKey);
-    renderEnvelopeHealth();
     renderCashFlowForecast();
   }
+
+  // ── Report picker (mobile) ──
+  // Only one report is shown at a time on a phone; six stacked cards ran to
+  // nearly three screens of scrolling. Every card is still rendered, so
+  // switching is instant and desktop — which ignores the active class
+  // entirely — keeps showing the full grid.
+  const REPORT_STORAGE_KEY = 'householdBudgetReport';
+  const DEFAULT_REPORT = 'report-spending';
+
+  function setActiveReport(reportId) {
+    const cards = [...document.querySelectorAll('.report-card')];
+    const valid = cards.some(c => c.id === reportId) ? reportId : DEFAULT_REPORT;
+    cards.forEach(c => c.classList.toggle('report-card-active', c.id === valid));
+    document.querySelectorAll('.report-chip').forEach(chip => {
+      const on = chip.dataset.report === valid;
+      chip.classList.toggle('active', on);
+      chip.setAttribute('aria-selected', String(on));
+    });
+    try { localStorage.setItem(REPORT_STORAGE_KEY, valid); } catch (e) { /* choice just won't persist */ }
+  }
+
+  document.querySelectorAll('.report-chip').forEach(chip => {
+    chip.addEventListener('click', () => setActiveReport(chip.dataset.report));
+  });
+
+  let _storedReport = null;
+  try { _storedReport = localStorage.getItem(REPORT_STORAGE_KEY); } catch (e) { _storedReport = null; }
+  setActiveReport(_storedReport || DEFAULT_REPORT);
 
   document.getElementById('report-month').addEventListener('change', () => {
     const monthKey = document.getElementById('report-month').value;
