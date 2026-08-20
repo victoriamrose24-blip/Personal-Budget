@@ -39,8 +39,8 @@ falls back to its cache when offline, so you are never stuck on a stale build.
 Nothing is stored on a server. There is no account to log into and nothing to
 subscribe to. Everything is in two places in your browser, on the one device:
 
-- **`localStorage`, key `householdBudgetState`** — envelopes, transactions,
-  recurring items, reconcile balances.
+- **`localStorage`, key `householdBudgetState`** — accounts, envelopes,
+  transactions, recurring items, reconcile balances.
 - **IndexedDB, database `budgetReceiptsDB`** — receipt photos, kept separately
   because they are far too big for localStorage.
 
@@ -82,18 +82,32 @@ the newer version.
   Funding an envelope moves money from there into the envelope. Income always
   equals Left to Assign plus the sum of every envelope balance.
 - **Goals** are per-paycheck targets. *Fund Goal* moves exactly that amount in.
-- **Reconcile** compares what the app thinks has cleared against what the bank
-  actually says. Tick things off as they clear; the difference should reach zero.
-- **The Cash Flow Forecast** projects forward from the balance you entered on
-  Reconcile, adjusted for anything recorded but not yet cleared — *not* from the
-  ledger total, which only counts from your first recorded transaction. Keep the
-  Reconcile balance current or the forecast drifts.
-- **Card charges** don't reduce projected checking. They are listed and totalled
-  separately, because cash only moves when you pay the card.
+- **Accounts** are yours to define, each one checking, savings or credit. The
+  *kind* drives the arithmetic, not the name: a charge reduces a checking or
+  savings account but *increases* what a credit account owes.
+- **Reconcile** gives every account its own card, actual balance and cleared
+  total, so a statement from any single card or account can be matched on its
+  own. Tick things off as they clear; the difference should reach zero.
+- **The Cash Flow Forecast** has two views, and the difference matters:
+  - **Cash in checking** — every checking account combined, projected forward.
+    Answers *"will a payment bounce?"*. Card charges are listed but held back,
+    because cash only moves when you pay the card.
+  - **After card debt** — the same projection minus what the cards owe. Answers
+    *"what is actually mine?"*. Here a card charge counts the day it is charged,
+    and paying a card off changes nothing, because that only moves money from
+    one pocket to another.
+
+  They cannot be merged into one figure without double counting, which is why
+  it is a switch rather than a single number. Savings is excluded from both — it
+  is money set aside, and including it would mask a tight month.
+- Both views start from the balances you enter on Reconcile, adjusted for
+  anything recorded but not yet cleared — *not* from the ledger total, which
+  only counts from your first recorded transaction. Keep those balances current
+  or the forecast drifts.
 
 ## Data format
 
-State carries `schemaVersion` (currently `1`). Older files without one are
+State carries `schemaVersion` (currently `2`; version 2 introduced accounts). Older files without one are
 repaired on load: missing fields are filled in, bad dates and frequencies
 replaced, and the version stamped. Exports include everything plus a
 `__receipts` map of the photos.

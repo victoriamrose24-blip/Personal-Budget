@@ -274,7 +274,29 @@
     border-left: 4px solid var(--success);
     padding: 12px 16px;
   }
-  .recon-card-label { font-weight: 700; font-size: var(--text-base); margin-bottom: 8px; color: var(--text-main); }
+  .recon-card-label {
+    font-weight: 700; font-size: var(--text-base); margin-bottom: 8px; color: var(--text-main);
+    display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
+  }
+  /* The kind matters as much as the name once several accounts share a screen:
+     it is what tells you a positive figure means money held or money owed. */
+  .recon-card-kind {
+    font-size: var(--text-2xs); font-weight: 600; color: var(--text-muted);
+    text-transform: uppercase; letter-spacing: 0.04em; white-space: nowrap;
+  }
+  .recon-card-credit { border-left: 4px solid var(--accent); }
+  .recon-card-savings { border-left: 4px solid var(--success); }
+  .recon-card-checking { border-left: 4px solid var(--primary); }
+
+  .account-manage-list { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
+  .account-manage-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap;
+    padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px;
+  }
+  .account-manage-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .account-manage-name { font-weight: 600; font-size: var(--text-sm); }
+  .account-manage-meta { font-size: var(--text-2xs); color: var(--text-muted); }
+  .account-manage-actions { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
   .recon-card-body { display: flex; flex-direction: column; gap: 6px; }
   .recon-inputs { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .recon-inputs span, .recon-inputs label { font-size: var(--text-base); color: var(--text-muted); white-space: nowrap; }
@@ -1297,6 +1319,13 @@
     .edit-save-btn, .edit-cancel-btn { flex: 1 1 auto; }
     .edit-recur-btn { flex: 1 1 100%; margin-right: 0; order: -1; }
 
+    /* The forecast card carries two selectors; side by side with the title
+       they squeeze it to three lines on a phone, so let the controls take
+       their own full-width row underneath. */
+    .report-card-header { flex-wrap: wrap; row-gap: 8px; }
+    .report-card-header h3 { flex: 1 0 100%; }
+    .report-card-header select { flex: 1 1 auto; min-width: 0; }
+
     /* Reports — one at a time, chosen by the chip row. The class is set
        unconditionally by JS; only this breakpoint acts on it, so crossing the
        breakpoint needs no resize handling. */
@@ -1743,6 +1772,10 @@
       <div class="report-card report-card-wide" id="report-forecast">
         <div class="report-card-header">
           <h3>Cash Flow Forecast</h3>
+          <select id="forecast-basis" aria-label="What the forecast counts">
+            <option value="cash" selected>Cash in checking</option>
+            <option value="net">After card debt</option>
+          </select>
           <select id="forecast-range" aria-label="Cash flow forecast horizon">
             <option value="30" selected>Next 30 days</option>
             <option value="60">Next 60 days</option>
@@ -4923,6 +4956,13 @@
 
   // ── CASH FLOW FORECAST ──
   let forecastHorizonDays = 30;
+  // 'cash' = money in checking; 'net' = checking minus what the cards owe.
+  let forecastBasis = 'cash';
+  const FORECAST_BASIS_KEY = 'householdBudgetForecastBasis';
+  try {
+    const storedBasis = localStorage.getItem(FORECAST_BASIS_KEY);
+    if (storedBasis === 'cash' || storedBasis === 'net') forecastBasis = storedBasis;
+  } catch (e) { /* falls back to cash */ }
 
   // Adds `days` calendar days to an ISO date. Pure UTC-based date math (not
   // todayISO()'s local-time concern) since this is just calendar arithmetic,
@@ -5011,7 +5051,25 @@
   // Expands every recurring item forward from today across the horizon,
   // merges the occurrences chronologically, and walks a running checking
   // balance starting from today's actual balance.
-  function computeCashFlowForecast(horizonDays) {
+  // What the cards currently owe: their reconciled balances plus any charges
+  // recorded against them that haven't cleared yet.
+  function getCardDebt() {
+    const uncleared = computeAccountTally(t => !t.cleared);
+    return roundMoney(orderedAccountEntries()
+      .filter(([, a]) => a.kind === 'credit')
+      .reduce((sum, [id, acct]) => sum + (acct.expectedBalance || 0) + (uncleared[id] || 0), 0));
+  }
+
+  // basis 'cash'  — money in checking. Answers "will a payment bounce?"
+  //       'net'   — checking minus what the cards owe. Answers "what is
+  //                 actually mine once the cards are settled?"
+  //
+  // The two cannot be merged into one number without double counting: in the
+  // cash view a card payment is a real outflow, while in the net view it just
+  // moves money from one pocket to another and leaves you no better or worse
+  // off. Savings is excluded from both — it is money set aside, and counting
+  // it would mask a month where checking itself is tight.
+  function computeCashFlowForecast(horizonDays, basis = 'cash') {
     const today = todayISO();
     const endDate = addDaysISO(today, horizonDays);
     const events = [];
@@ -5042,30 +5100,41 @@
 
     events.sort((a, b) => a.date.localeCompare(b.date) || (a.type === 'income' ? -1 : 1));
 
-    const startBalance = getForecastStartBalance();
+    const isNet = basis === 'net';
+    const cardDebt = getCardDebt();
+    const checking = getForecastStartBalance();
+    const startBalance = isNet ? roundMoney(checking - cardDebt) : checking;
+
     let running = startBalance;
     let lowest = running;
     let lowestDate = today;
     let cardCharges = 0;
     const rows = events.map(evt => {
-      // A charge on the credit card doesn't move cash — checking is only
-      // affected later, when you pay the card — so it's listed for awareness
-      // but leaves the projected balance untouched. An occurrence already
-      // entered in the ledger is likewise left out of the arithmetic: it is
-      // part of the starting balance already.
       const onCard = evt.type === 'expense' && accountKind(evt.account) === 'credit';
       if (evt.posted) {
-        // already counted in startBalance — no effect either way
-      } else if (onCard) {
+        // Already entered in the ledger, so it is part of the starting balance
+        // in either basis — counting it again would charge you twice.
+      } else if (onCard && !isNet) {
+        // Cash view: a card charge doesn't move cash until the card is paid,
+        // so it is listed for awareness and totalled separately instead.
         cardCharges = roundMoney(cardCharges + evt.amount);
       } else {
+        // Net view treats a card charge exactly like any other spending: the
+        // money is committed the moment it is charged, whichever pocket it
+        // eventually leaves from.
         running = roundMoney(running + (evt.type === 'income' ? evt.amount : -evt.amount));
         if (running < lowest) { lowest = running; lowestDate = evt.date; }
       }
-      return { date: evt.date, name: evt.name, type: evt.type, amount: evt.amount, onCard, posted: evt.posted, balance: running };
+      return {
+        date: evt.date, name: evt.name, type: evt.type, amount: evt.amount,
+        // In the net view nothing is held back from the running balance, so no
+        // row needs the "doesn't affect this" treatment.
+        onCard: onCard && !isNet, cardAccount: onCard, posted: evt.posted, balance: running
+      };
     });
 
-    return { startBalance, rows, lowest, lowestDate, goesNegative: lowest < 0, cardCharges };
+    return { startBalance, rows, lowest, lowestDate, goesNegative: lowest < 0,
+             cardCharges, cardDebt, checking, basis };
   }
 
   function renderCashFlowForecast() {
@@ -5075,7 +5144,8 @@
       return;
     }
 
-    const forecast = computeCashFlowForecast(forecastHorizonDays);
+    const forecast = computeCashFlowForecast(forecastHorizonDays, forecastBasis);
+    const isNet = forecast.basis === 'net';
     if (forecast.rows.length === 0) {
       el.innerHTML = `<div class="report-empty">No recurring items land within the next ${forecastHorizonDays} days.</div>`;
       return;
@@ -5088,14 +5158,21 @@
 
     // Be explicit about where the projection starts, so the numbers can be
     // sanity-checked instead of taken on faith.
-    const startLine = `Starting from $${forecast.startBalance.toFixed(2)} — your checking balances from Reconcile, adjusted for uncleared transactions.`;
+    const startLine = isNet
+      ? `Starting from $${forecast.startBalance.toFixed(2)} — $${forecast.checking.toFixed(2)} in checking less $${forecast.cardDebt.toFixed(2)} owed on cards.`
+      : `Starting from $${forecast.startBalance.toFixed(2)} — your checking balances from Reconcile, adjusted for uncleared transactions.`;
     const needsBalance = !hasReconciledCheckingBalance();
     const balanceHint = needsBalance
       ? '<div class="forecast-note forecast-note-warn">Set your account balances on the Reconcile tab — without them this projects from $0 and the amounts below will be off.</div>'
       : '';
-    const cardNote = forecast.cardCharges > 0
-      ? `<div class="forecast-note">Plus $${forecast.cardCharges.toFixed(2)} in card charges due. These don't reduce checking until you pay the card, so they aren't in the balance above.</div>`
-      : '';
+    let cardNote = '';
+    if (isNet) {
+      cardNote = '<div class="forecast-note">Card charges count against this the day they are charged, and paying a card off doesn\u2019t change it \u2014 that just moves money from one pocket to another.</div>';
+    } else if (forecast.cardCharges > 0) {
+      cardNote = `<div class="forecast-note">Plus $${forecast.cardCharges.toFixed(2)} in card charges due. These don't reduce checking until you pay the card, so they aren't in the balance above. Switch to <em>After card debt</em> to include them and the $${forecast.cardDebt.toFixed(2)} already owed.</div>`;
+    } else if (forecast.cardDebt > 0) {
+      cardNote = `<div class="forecast-note">You owe $${forecast.cardDebt.toFixed(2)} on cards, which isn't in the balance above. Switch to <em>After card debt</em> to include it.</div>`;
+    }
 
     let rows = '';
     forecast.rows.forEach(evt => {
@@ -5103,7 +5180,7 @@
       const sign = isCredit ? '+' : '-';
       const amtColor = isCredit ? 'var(--success)' : 'var(--danger)';
       const balClass = evt.balance < 0 ? 'net-neg' : '';
-      const cardBadge = evt.onCard ? '<span class="account-badge">CC</span>' : '';
+      const cardBadge = evt.cardAccount ? '<span class="account-badge">CC</span>' : '';
       const postedBadge = evt.posted ? '<span class="forecast-posted-badge">recorded</span>' : '';
       let balanceCell;
       if (evt.posted) {
@@ -5125,7 +5202,7 @@
       + '<div class="forecast-note">' + startLine + '</div>'
       + balanceHint
       + '<table class="month-table forecast-table">'
-      + '<thead><tr><th>Date</th><th>Item</th><th>Amount</th><th>Proj. Balance</th></tr></thead>'
+      + '<thead><tr><th>Date</th><th>Item</th><th>Amount</th><th>' + (isNet ? 'Proj. Position' : 'Proj. Balance') + '</th></tr></thead>'
       + '<tbody>' + rows + '</tbody>'
       + '</table>'
       + cardNote;
@@ -5188,6 +5265,14 @@
 
   document.getElementById('forecast-range').addEventListener('change', (e) => {
     forecastHorizonDays = parseInt(e.target.value, 10);
+    renderCashFlowForecast();
+  });
+
+  const forecastBasisSelect = document.getElementById('forecast-basis');
+  forecastBasisSelect.value = forecastBasis;
+  forecastBasisSelect.addEventListener('change', (e) => {
+    forecastBasis = e.target.value;
+    try { localStorage.setItem(FORECAST_BASIS_KEY, forecastBasis); } catch (err) { /* choice just won't persist */ }
     renderCashFlowForecast();
   });
 
