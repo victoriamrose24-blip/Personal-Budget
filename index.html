@@ -3039,9 +3039,12 @@
     
     if(type === 'income' || type === 'cc-payment' || type === 'cc-cashback') {
         txnTypeSelect.value = 'expense';
-        txnEnvelopeSelect.disabled = false;
-        txnAccountSelect.disabled = false;
-        renderDropdown();
+        // Re-run the real type-change logic instead of repeating part of it by
+        // hand. Doing it manually left out setSplitToggleVisible, so after
+        // recording income the form reset to Expense with the "Split across
+        // multiple envelopes" checkbox still hidden, and it only came back if
+        // you changed Type away and back again.
+        txnTypeSelect.dispatchEvent(new Event('change'));
     }
 
     // Only now that the entry is real does the recurring item's due date move
