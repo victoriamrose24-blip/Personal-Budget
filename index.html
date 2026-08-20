@@ -521,6 +521,38 @@
   .quick-fund-btn:hover { background: var(--success-hover); }
 
   /* Recurring Bills & Income */
+  /* Accounts */
+  .recon-card-kind {
+    display: inline-block;
+    margin-left: 8px;
+    padding: 1px 8px;
+    border-radius: 10px;
+    background: var(--border);
+    color: var(--text-muted);
+    font-size: var(--text-2xs);
+    font-weight: 600;
+    letter-spacing: 0;
+    text-transform: none;
+  }
+  .recon-card-credit { border-top-color: var(--accent); }
+  .recon-card-savings { border-top-color: var(--success); }
+  .account-manage-list { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
+  .account-manage-row {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    background: var(--bg-main);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 12px;
+  }
+  .account-manage-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .account-manage-name { font-weight: 600; font-size: var(--text-sm); }
+  .account-manage-meta { font-size: var(--text-2xs); color: var(--text-muted); }
+  .account-manage-actions { display: flex; gap: 5px; align-items: center; flex-wrap: wrap; }
+
   .recurring-section { margin-top: 18px; }
   .recurring-section-title { font-size: var(--text-sm); color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; margin: 0 0 8px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
   .recurring-list { display: flex; flex-direction: column; gap: 6px; }
@@ -1441,10 +1473,7 @@
             </div>
             <div class="txn-field">
               <label class="txn-label" for="recur-account">Account</label>
-              <select id="recur-account">
-                <option value="checking">Checking</option>
-                <option value="cc">Credit Card</option>
-              </select>
+              <select id="recur-account"></select>
             </div>
             <div class="txn-field" id="recur-envelope-field">
               <label class="txn-label" for="recur-envelope">Envelope (optional)</label>
@@ -1514,10 +1543,11 @@
           </div>
           <div class="txn-field">
             <label class="txn-label" for="txn-account">Account</label>
-            <select id="txn-account">
-              <option value="checking">Checking</option>
-              <option value="cc">Credit Card</option>
-            </select>
+            <select id="txn-account"></select>
+          </div>
+          <div class="txn-field" id="txn-to-account-field" style="display:none;">
+            <label class="txn-label" for="txn-to-account">To account</label>
+            <select id="txn-to-account"></select>
           </div>
           <div class="txn-field">
             <label class="txn-label" for="txn-amount">Amount</label>
@@ -1591,8 +1621,6 @@
         </select>
         <select id="filter-account" aria-label="Filter by account">
           <option value="">All Accounts</option>
-          <option value="checking">Checking</option>
-          <option value="cc">Credit Card</option>
         </select>
         <select id="filter-envelope" aria-label="Filter by envelope">
           <option value="">All Envelopes</option>
@@ -1631,54 +1659,36 @@
     <div class="mobile-sticky-top">
       <div class="recon-panel-header">
         <span class="recon-panel-title">Reconciliation</span>
+        <button type="button" id="toggle-accounts-btn" class="secondary-btn">＋ Accounts</button>
+      </div>
+      <div id="accounts-wrapper" class="collapsible-form" style="display:none; margin-bottom:12px;">
+        <form id="add-account-form">
+          <div class="txn-form-grid">
+            <div class="txn-field txn-field-wide">
+              <label class="txn-label" for="account-name">Account name</label>
+              <input type="text" id="account-name" placeholder="e.g. BECU Checking, Chase Visa" required autocomplete="off">
+            </div>
+            <div class="txn-field">
+              <label class="txn-label" for="account-kind">Type</label>
+              <select id="account-kind" required>
+                <option value="checking">Checking</option>
+                <option value="savings">Savings</option>
+                <option value="credit">Credit Card</option>
+              </select>
+            </div>
+            <div class="txn-field">
+              <label class="txn-label" for="account-balance">Current balance</label>
+              <input type="number" id="account-balance" placeholder="0.00" step="0.01" value="0">
+            </div>
+          </div>
+          <button type="submit" class="txn-submit-btn">Add Account</button>
+        </form>
+        <div class="account-manage-list" id="account-manage-list"></div>
       </div>
     </div>
     <div class="scroll-area">
-    <div class="recon-cards">
-      <div class="recon-card">
-        <div class="recon-card-label">Checking Account</div>
-        <div class="recon-card-body">
-          <div class="recon-inputs">
-            <label for="actual-bank-balance">Actual Balance $</label>
-            <input type="number" id="actual-bank-balance" step="0.01" value="0.00">
-          </div>
-          <div class="recon-cleared">Cleared Ledger: $<span id="cleared-balance">0.00</span></div>
-          <div id="recon-status" class="match-status"></div>
-        </div>
-        <div class="recon-clear-section">
-          <div class="recon-clear-title">Needs Clearing</div>
-          <div id="uncleared-list-checking"></div>
-        </div>
-        <div class="recon-clear-section">
-          <div class="recon-cleared-toggle" id="cleared-toggle-checking" role="button" tabindex="0" onclick="toggleClearedSection('checking')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleClearedSection('checking');}">
-            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-            Recently Cleared
-          </div>
-          <div id="cleared-list-checking" class="recon-cleared-list" style="display:none;"></div>
-        </div>
-      </div>
-      <div class="recon-card">
-        <div class="recon-card-label">Credit Card</div>
-        <div class="recon-card-body">
-          <div class="recon-inputs">
-            <label for="actual-cc-balance">Actual Balance $</label>
-            <input type="number" id="actual-cc-balance" step="0.01" value="0.00">
-          </div>
-          <div class="recon-cleared">Cleared Charges: $<span id="cleared-cc-balance">0.00</span></div>
-          <div id="recon-cc-status" class="match-status"></div>
-        </div>
-        <div class="recon-clear-section">
-          <div class="recon-clear-title">Needs Clearing</div>
-          <div id="uncleared-list-cc"></div>
-        </div>
-        <div class="recon-clear-section">
-          <div class="recon-cleared-toggle" id="cleared-toggle-cc" role="button" tabindex="0" onclick="toggleClearedSection('cc')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleClearedSection('cc');}">
-            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-            Recently Cleared
-          </div>
-          <div id="cleared-list-cc" class="recon-cleared-list" style="display:none;"></div>
-        </div>
-      </div>
+    <div class="recon-cards" id="recon-cards">
+      <!-- One card per account, rendered by renderReconCards() -->
     </div>
     </div><!-- /.scroll-area -->
   </div>
@@ -1925,7 +1935,20 @@
   // version makes future migrations deterministic instead, and lets this build
   // recognise a file written by a NEWER version of the app rather than
   // silently mangling fields it doesn't understand.
-  const SCHEMA_VERSION = 1;
+  const SCHEMA_VERSION = 2;
+
+  // Accounts the app understands. The kind — not the account's name — drives
+  // the arithmetic, which is what let the original hardcoded checking/card
+  // pair grow into an arbitrary list without rewriting the money logic:
+  //   checking  spending money; a charge reduces it
+  //   savings   money set aside; behaves like checking but is not spendable,
+  //             so the cash-flow forecast ignores it
+  //   credit    a debt; a charge INCREASES what is owed, and paying it down
+  //             reduces both the card and the account paying it
+  const ACCOUNT_KINDS = { checking: 'Checking', savings: 'Savings', credit: 'Credit Card' };
+  const DEFAULT_CHECKING_ID = 'acct-checking';
+  const DEFAULT_CREDIT_ID = 'acct-credit';
+  const DEFAULT_SAVINGS_ID = 'acct-savings';
 
   // localStorage is capped per origin — measured at exactly 5.00MB here, and
   // 5MB is the near-universal value. Used to warn before saves start failing
@@ -1938,6 +1961,87 @@
   // fields (id, dateISO) that must exist for edit/delete/sort to work
   // correctly. Used both for state loaded from localStorage at boot and for
   // state loaded via Import, so imported backups can't skip normalization.
+  // Brings a state written before accounts existed up to the multi-account
+  // shape. The old model had exactly two implicit accounts stored as the
+  // string 'checking' or 'cc' on each transaction, so the mapping is
+  // unambiguous and no transaction can land in the wrong place.
+  //
+  // Runs on every load but only does work once: it keys off whether a
+  // transaction already carries an accountId, so re-running is a no-op and a
+  // partially-migrated state finishes cleanly rather than being migrated twice.
+  // The legacy `account` string is deliberately left in place — it costs a few
+  // bytes per row and means the original value is still there to fall back on
+  // if any of this ever proves wrong.
+  function migrateAccounts(s) {
+    if (!s.accounts || typeof s.accounts !== 'object') s.accounts = {};
+
+    const hasLegacyLedger = s.ledger.some(t => !t.accountId);
+    const needsDefaults = Object.keys(s.accounts).length === 0;
+
+    if (needsDefaults) {
+      s.accounts[DEFAULT_CHECKING_ID] = {
+        name: 'Checking', kind: 'checking', order: 0,
+        expectedBalance: roundMoney(s.expectedBankBalance || 0)
+      };
+      s.accounts[DEFAULT_CREDIT_ID] = {
+        name: 'Credit Card', kind: 'credit', order: 1,
+        expectedBalance: roundMoney(s.expectedCcBalance || 0)
+      };
+    }
+
+    // Savings only becomes a real account if money was ever moved there. Its
+    // opening balance is everything previously transferred, which under the old
+    // model simply left the app — the transfers reduced checking and an
+    // envelope but landed nowhere.
+    const savingsTotal = roundMoney(
+      s.ledger.filter(t => t.type === 'transfer' && !t.toAccountId)
+              .reduce((sum, t) => sum + (t.amount || 0), 0));
+    if (savingsTotal > 0 && !s.accounts[DEFAULT_SAVINGS_ID]) {
+      s.accounts[DEFAULT_SAVINGS_ID] = {
+        name: 'Savings', kind: 'savings', order: 2,
+        expectedBalance: savingsTotal
+      };
+    }
+
+    if (hasLegacyLedger) {
+      const fallbackChecking = pickAccountIdByKind(s, 'checking') || DEFAULT_CHECKING_ID;
+      const fallbackCredit = pickAccountIdByKind(s, 'credit') || DEFAULT_CREDIT_ID;
+      s.ledger.forEach(t => {
+        if (!t.accountId) {
+          t.accountId = t.account === 'cc' ? fallbackCredit : fallbackChecking;
+        }
+        // A card payment and a savings transfer both move money to somewhere
+        // the old model never recorded; give them their destination.
+        if (t.type === 'cc-payment' && !t.toAccountId) t.toAccountId = fallbackCredit;
+        if (t.type === 'transfer' && !t.toAccountId && s.accounts[DEFAULT_SAVINGS_ID]) {
+          t.toAccountId = DEFAULT_SAVINGS_ID;
+        }
+      });
+    }
+
+    (s.recurring || []).forEach(r => {
+      if (!r.accountId) {
+        r.accountId = r.account === 'cc'
+          ? (pickAccountIdByKind(s, 'credit') || DEFAULT_CREDIT_ID)
+          : (pickAccountIdByKind(s, 'checking') || DEFAULT_CHECKING_ID);
+      }
+    });
+
+    Object.values(s.accounts).forEach((acct, index) => {
+      if (!ACCOUNT_KINDS[acct.kind]) acct.kind = 'checking';
+      if (typeof acct.order !== 'number') acct.order = index;
+      acct.expectedBalance = roundMoney(parseFloat(acct.expectedBalance) || 0);
+      if (!String(acct.name || '').trim()) acct.name = ACCOUNT_KINDS[acct.kind];
+    });
+  }
+
+  function pickAccountIdByKind(s, kind) {
+    const match = Object.entries(s.accounts || {})
+      .filter(([, a]) => a.kind === kind)
+      .sort((a, b) => (a[1].order || 0) - (b[1].order || 0))[0];
+    return match ? match[0] : null;
+  }
+
   function normalizeState(s) {
     // Envelopes used to render in whatever order the object happened to
     // enumerate, which meant creation order forever. An explicit order field
@@ -1959,6 +2063,7 @@
     });
     if (typeof s.expectedBankBalance === 'undefined') s.expectedBankBalance = 0;
     if (typeof s.expectedCcBalance === 'undefined') s.expectedCcBalance = 0;
+    migrateAccounts(s);
     if (!Array.isArray(s.recurring)) s.recurring = [];
     s.recurring.forEach(r => {
       if (typeof r.id === 'undefined') r.id = Date.now().toString() + Math.random();
@@ -2174,16 +2279,8 @@
   const txnEnvelopeSelect = document.getElementById('txn-envelope');
   const txnTypeSelect = document.getElementById('txn-type');
   const txnDateInput = document.getElementById('txn-date');
-  const actualBankInput = document.getElementById('actual-bank-balance');
-  const clearedBalanceEl = document.getElementById('cleared-balance');
-  const reconStatusEl = document.getElementById('recon-status');
-  const actualCcInput = document.getElementById('actual-cc-balance');
-  const clearedCcBalanceEl = document.getElementById('cleared-cc-balance');
-  const reconCcStatusEl = document.getElementById('recon-cc-status');
   const importFileEl = document.getElementById('import-file');
 
-  actualBankInput.value = state.expectedBankBalance.toFixed(2);
-  actualCcInput.value = state.expectedCcBalance.toFixed(2);
   txnDateInput.value = todayISO(); // local date, not UTC — avoids off-by-one near midnight
 
   // --- BACKUP & RESTORE EVENT LISTENERS ---
@@ -2251,8 +2348,6 @@
 
           normalizeState(importedState);
           state = importedState;
-          actualBankInput.value = (state.expectedBankBalance || 0).toFixed(2);
-          actualCcInput.value = (state.expectedCcBalance || 0).toFixed(2);
           _receiptCache.clear();
 
           const restoreReceipts = receiptIds.length
@@ -2290,16 +2385,6 @@
     }
   });
 
-  actualBankInput.addEventListener('change', (e) => {
-    state.expectedBankBalance = roundMoney(parseFloat(e.target.value) || 0);
-    saveState();
-    renderRecon();
-  });
-  actualCcInput.addEventListener('change', (e) => {
-    state.expectedCcBalance = roundMoney(parseFloat(e.target.value) || 0);
-    saveState();
-    renderRecon();
-  });
 
   // ── Filter & Sort ──
   // Default to current month YYYY-MM
@@ -2418,7 +2503,7 @@
       type: typeInput.value,
       amount: roundMoney(parseFloat(amountInput.value) || 0),
       envelopeId: envelopeInput.value,
-      account: typeInput.value === 'income' ? 'checking' : accountInput.value,
+      accountId: accountInput.value,
       frequency: frequencyInput.value,
       nextDate: dateInput.value
     });
@@ -2517,9 +2602,14 @@
     const typeEl = document.getElementById('recur-type');
     const accountEl = document.getElementById('recur-account');
     if (!typeEl || !accountEl) return;
-    const isIncome = typeEl.value === 'income';
-    if (isIncome) accountEl.value = 'checking';
-    accountEl.disabled = isIncome;
+    // Income arrives as cash, never onto a card, so the list narrows rather
+    // than locking: with more than one checking account you still have to say
+    // which one a paycheck lands in. (This used to assign the literal string
+    // 'checking', which matched no account once accounts became real records
+    // and left the field blank.)
+    const kinds = typeEl.value === 'income' ? ['checking', 'savings'] : null;
+    fillAccountSelect(accountEl, { kinds, selected: accountEl.value });
+    accountEl.disabled = false;
   }
   document.getElementById('recur-type').addEventListener('change', syncRecurAccountField);
   syncRecurAccountField();
@@ -2532,6 +2622,180 @@
     recurEnvelopeSelect.innerHTML = '<option value="">None</option>' + opts;
     if (state.envelopes[current]) recurEnvelopeSelect.value = current;
   }
+
+  // ── Accounts ──
+  function orderedAccountEntries() {
+    return Object.entries(state.accounts).sort((a, b) => (a[1].order || 0) - (b[1].order || 0));
+  }
+  function accountName(id) {
+    return state.accounts[id] ? state.accounts[id].name : 'Unknown account';
+  }
+  function accountKind(id) {
+    return state.accounts[id] ? state.accounts[id].kind : 'checking';
+  }
+  function isSpendableAccount(id) { return accountKind(id) === 'checking'; }
+
+  // Applies one transaction's effect to a per-account tally. Shared by the
+  // cleared totals on Reconcile and the uncleared adjustment the forecast
+  // uses, so the two can never drift apart the way two hand-written copies of
+  // this arithmetic would.
+  function applyAccountEffect(tally, t) {
+    if (t.type === 'funding' || t.type === 'envelope-transfer') return;
+    const src = t.accountId;
+    const dst = t.toAccountId;
+    const add = (id, delta) => {
+      if (!id || !(id in tally)) return;
+      tally[id] = roundMoney(tally[id] + delta);
+    };
+    if (t.type === 'income') {
+      add(src, t.amount);
+    } else if (t.type === 'expense' || t.type === 'split') {
+      // On a card a charge increases what is owed; anywhere else it takes money out.
+      add(src, accountKind(src) === 'credit' ? t.amount : -t.amount);
+    } else if (t.type === 'cc-payment') {
+      add(src, -t.amount);   // money leaves the paying account
+      add(dst, -t.amount);   // and reduces the balance owed on the card
+    } else if (t.type === 'cc-cashback') {
+      add(src, -t.amount);   // cash back reduces what is owed on that card
+    } else if (t.type === 'transfer') {
+      add(src, -t.amount);
+      add(dst, t.amount);    // savings is a real destination now, not a void
+    }
+  }
+
+  function emptyAccountTally() {
+    const tally = {};
+    Object.keys(state.accounts).forEach(id => { tally[id] = 0; });
+    return tally;
+  }
+
+  function computeAccountTally(includeTxn) {
+    const tally = emptyAccountTally();
+    state.ledger.forEach(t => { if (includeTxn(t)) applyAccountEffect(tally, t); });
+    return tally;
+  }
+
+  // Repopulates every account-bound dropdown after the account list changes,
+  // preserving each one's current selection where it still exists.
+  function renderAccountDropdowns() {
+    const filterEl = document.getElementById('filter-account');
+    if (filterEl) {
+      const current = filterEl.value;
+      filterEl.innerHTML = '<option value="">All Accounts</option>'
+        + orderedAccountEntries().map(([id, a]) => `<option value="${id}">${escapeHtml(a.name)}</option>`).join('');
+      if (current && state.accounts[current]) filterEl.value = current;
+    }
+    const recurEl = document.getElementById('recur-account');
+    if (recurEl) fillAccountSelect(recurEl, { selected: recurEl.value });
+    // The transaction form's source/destination pair has its own rules per
+    // type, so let that logic rebuild them rather than duplicating it here.
+    if (typeof syncAccountFieldsForType === 'function') syncAccountFieldsForType();
+  }
+
+  // ── Managing accounts ──
+  const accountsWrapper = document.getElementById('accounts-wrapper');
+  const toggleAccountsBtn = document.getElementById('toggle-accounts-btn');
+
+  toggleAccountsBtn.addEventListener('click', () => {
+    const open = accountsWrapper.style.display !== 'none';
+    accountsWrapper.style.display = open ? 'none' : 'block';
+    toggleAccountsBtn.textContent = open ? '＋ Accounts' : '✕ Cancel';
+    syncPanelFormExpanded('panel-recon');
+    if (!open) renderAccountManageList();
+  });
+
+  document.getElementById('add-account-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const nameEl = document.getElementById('account-name');
+    const kindEl = document.getElementById('account-kind');
+    const balEl = document.getElementById('account-balance');
+    const name = nameEl.value.trim();
+    if (!name) { nameEl.value = ''; nameEl.reportValidity(); return; }
+
+    const id = 'acct-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    const nextOrder = Object.values(state.accounts).reduce((max, a) => Math.max(max, a.order || 0), -1) + 1;
+    state.accounts[id] = {
+      name, kind: kindEl.value, order: nextOrder,
+      expectedBalance: roundMoney(parseFloat(balEl.value) || 0)
+    };
+    nameEl.value = ''; balEl.value = '0'; kindEl.value = 'checking';
+    saveState();
+    render();
+    renderAccountManageList();
+  });
+
+  function renderAccountManageList() {
+    const el = document.getElementById('account-manage-list');
+    if (!el) return;
+    const entries = orderedAccountEntries();
+    el.innerHTML = entries.map(([id, acct], i) => {
+      const used = countAccountUses(id);
+      return `
+        <div class="account-manage-row">
+          <div class="account-manage-info">
+            <span class="account-manage-name">${escapeHtml(acct.name)}</span>
+            <span class="account-manage-meta">${ACCOUNT_KINDS[acct.kind]} · ${used} transaction${used === 1 ? '' : 's'}</span>
+          </div>
+          <div class="account-manage-actions">
+            <button type="button" class="env-menu-btn" onclick="renameAccount('${id}')">Rename</button>
+            <button type="button" class="env-menu-btn env-menu-move" onclick="moveAccount('${id}', -1)" aria-label="Move ${escapeHtml(acct.name)} up"${i === 0 ? ' disabled' : ''}>↑</button>
+            <button type="button" class="env-menu-btn env-menu-move" onclick="moveAccount('${id}', 1)" aria-label="Move ${escapeHtml(acct.name)} down"${i === entries.length - 1 ? ' disabled' : ''}>↓</button>
+            <button type="button" class="env-menu-btn env-menu-danger" onclick="deleteAccount('${id}')">Delete</button>
+          </div>
+        </div>`;
+    }).join('');
+  }
+
+  function countAccountUses(id) {
+    return state.ledger.filter(t => t.accountId === id || t.toAccountId === id).length
+      + (state.recurring || []).filter(r => r.accountId === id).length;
+  }
+
+  window.renameAccount = function(id) {
+    const acct = state.accounts[id];
+    if (!acct) return;
+    const name = prompt('Account name:', acct.name);
+    if (name === null) return;
+    if (!name.trim()) { alert('An account needs a name.'); return; }
+    acct.name = name.trim();
+    saveState();
+    render();
+    renderAccountManageList();
+  };
+
+  window.moveAccount = function(id, direction) {
+    const entries = orderedAccountEntries();
+    entries.forEach(([, acct], i) => { acct.order = i; });
+    const index = entries.findIndex(([aid]) => aid === id);
+    const target = index + direction;
+    if (index < 0 || target < 0 || target >= entries.length) return;
+    entries[index][1].order = target;
+    entries[target][1].order = index;
+    saveState();
+    render();
+    renderAccountManageList();
+  };
+
+  // Deleting an account that transactions point at would orphan them — their
+  // money would vanish from every balance while the rows stayed in the ledger.
+  window.deleteAccount = function(id) {
+    const acct = state.accounts[id];
+    if (!acct) return;
+    const used = countAccountUses(id);
+    if (used > 0) {
+      alert(`"${acct.name}" still has ${used} transaction${used === 1 ? '' : 's'} attached to it, so it can't be deleted — those entries would lose track of where the money went.\n\nMove or delete them first, or just rename this account instead.`);
+      return;
+    }
+    if (Object.keys(state.accounts).length === 1) {
+      alert('This is your only account. Add another before deleting this one.');
+      return;
+    }
+    if (!confirm(`Delete the account "${acct.name}"?`)) return;
+    delete state.accounts[id];
+    saveState();
+    render();
+    renderAccountManageList();
+  };
 
   // Every envelope listing goes through here, so the user's chosen order is
   // reflected consistently in the list, all the dropdowns and the reports —
@@ -2758,35 +3022,73 @@
 
   const txnAccountSelect = document.getElementById('txn-account');
 
+  const txnToAccountSelect = document.getElementById('txn-to-account');
+  const txnToAccountField = document.getElementById('txn-to-account-field');
+
+  // Fills an account dropdown, optionally limited to certain kinds and
+  // excluding one account (you cannot move money to the account it came from).
+  function fillAccountSelect(selectEl, { kinds = null, exclude = null, selected = null } = {}) {
+    const entries = orderedAccountEntries()
+      .filter(([id, a]) => (!kinds || kinds.includes(a.kind)) && id !== exclude);
+    selectEl.innerHTML = entries.length
+      ? entries.map(([id, a]) => `<option value="${id}">${escapeHtml(a.name)}</option>`).join('')
+      : '<option value="">No suitable account</option>';
+    if (selected && entries.some(([id]) => id === selected)) selectEl.value = selected;
+    return entries.length;
+  }
+
+  // Which accounts each transaction type can come from and go to. Keeping this
+  // in one place is what stops, say, a card payment being drawn from the card
+  // it is paying off.
+  function syncAccountFieldsForType() {
+    const val = txnTypeSelect.value;
+    const keepSource = txnAccountSelect.value;
+    let sourceKinds = null;
+    let destKinds = null;
+
+    if (val === 'income') sourceKinds = ['checking', 'savings'];
+    else if (val === 'cc-payment') { sourceKinds = ['checking', 'savings']; destKinds = ['credit']; }
+    else if (val === 'cc-cashback') sourceKinds = ['credit'];
+    else if (val === 'transfer') { sourceKinds = ['checking', 'savings']; destKinds = ['checking', 'savings']; }
+
+    fillAccountSelect(txnAccountSelect, { kinds: sourceKinds, selected: keepSource });
+    if (destKinds) {
+      fillAccountSelect(txnToAccountSelect, { kinds: destKinds, exclude: txnAccountSelect.value });
+      txnToAccountField.style.display = '';
+    } else {
+      txnToAccountField.style.display = 'none';
+    }
+  }
+
+  // Re-filter the destination when the source changes, so the two can't collide.
+  txnAccountSelect.addEventListener('change', () => {
+    if (txnToAccountField.style.display === 'none') return;
+    const val = txnTypeSelect.value;
+    const destKinds = val === 'cc-payment' ? ['credit'] : ['checking', 'savings'];
+    fillAccountSelect(txnToAccountSelect, { kinds: destKinds, exclude: txnAccountSelect.value, selected: txnToAccountSelect.value });
+  });
+
   txnTypeSelect.addEventListener('change', (e) => {
     const val = e.target.value;
+    syncAccountFieldsForType();
     if (val === 'income') {
       txnEnvelopeSelect.innerHTML = '<option value="unallocated">Left to Assign (Pool)</option>';
       txnEnvelopeSelect.disabled = true;
-      txnAccountSelect.value = 'checking';
-      txnAccountSelect.disabled = true;
       setSplitToggleVisible(false);
     } else if (val === 'cc-payment') {
-      txnEnvelopeSelect.innerHTML = '<option value="none">N/A — CC Payment</option>';
+      txnEnvelopeSelect.innerHTML = '<option value="none">N/A — Card Payment</option>';
       txnEnvelopeSelect.disabled = true;
-      txnAccountSelect.value = 'checking';
-      txnAccountSelect.disabled = true;
       setSplitToggleVisible(false);
     } else if (val === 'cc-cashback') {
       txnEnvelopeSelect.innerHTML = '<option value="none">N/A — Cash Back</option>';
       txnEnvelopeSelect.disabled = true;
-      txnAccountSelect.value = 'cc';
-      txnAccountSelect.disabled = true;
       setSplitToggleVisible(false);
     } else if (val === 'transfer') {
-      txnAccountSelect.value = 'checking';
-      txnAccountSelect.disabled = true;
       txnEnvelopeSelect.disabled = false;
       renderDropdown();
       setSplitToggleVisible(false);
     } else {
       txnEnvelopeSelect.disabled = false;
-      txnAccountSelect.disabled = false;
       renderDropdown();
       setSplitToggleVisible(val === 'expense');
     }
@@ -2945,7 +3247,10 @@
   document.getElementById('add-transaction-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const type = document.getElementById('txn-type').value;
-    const account = document.getElementById('txn-account').value;
+    const accountId = document.getElementById('txn-account').value;
+    const toAccountId = txnToAccountField.style.display === 'none'
+      ? undefined
+      : (document.getElementById('txn-to-account').value || undefined);
     // Trimmed for the same reason as the envelope and recurring names, and
     // additionally so payees differing only by stray spaces don't split into
     // separate entries in the autocomplete and the spending reports.
@@ -2982,7 +3287,8 @@
       amount,
       type: isSplitMode ? 'split' : type,
       cleared: false,
-      account: account,
+      accountId,
+      toAccountId,
       note: note || undefined,
       hasReceipt: !!pendingReceiptDataUrl
     };
@@ -2997,15 +3303,11 @@
       });
     } else if (type === 'income') {
       txn.categoryId = 'unallocated';
-      txn.account = 'checking';
     } else if (type === 'cc-payment') {
       txn.categoryId = 'none';
-      txn.account = 'checking';
     } else if (type === 'cc-cashback') {
       txn.categoryId = 'none';
-      txn.account = 'cc';
     } else if (type === 'transfer') {
-      txn.account = 'checking';
       if (state.envelopes[categoryId]) {
         state.envelopes[categoryId].balance = roundMoney(state.envelopes[categoryId].balance - amount);
       }
@@ -3208,56 +3510,68 @@
     render();
   };
 
+  // Renders one reconcile card per account. Every account keeps its own actual
+  // balance and its own cleared total, so a statement from any one card or
+  // account can be matched on its own — the old pair of running totals could
+  // only ever tell you what everything combined was worth.
   function renderRecon() {
-    let checkingCleared = 0;
-    let ccCleared = 0;
+    const cleared = computeAccountTally(t => t.cleared);
+    const container = document.getElementById('recon-cards');
+    if (!container) return;
 
-    state.ledger.forEach(txn => {
-      if (!txn.cleared || txn.type === 'funding') return;
-      const isChecking = txn.account !== 'cc';
-      if (txn.type === 'income') {
-        checkingCleared = roundMoney(checkingCleared + txn.amount);
-      } else if (txn.type === 'expense') {
-        if (isChecking) checkingCleared = roundMoney(checkingCleared - txn.amount);
-        else ccCleared = roundMoney(ccCleared + txn.amount);
-      } else if (txn.type === 'cc-payment') {
-        checkingCleared = roundMoney(checkingCleared - txn.amount);
-        ccCleared = roundMoney(ccCleared - txn.amount);
-      } else if (txn.type === 'cc-cashback') {
-        ccCleared = roundMoney(ccCleared - txn.amount);
-      } else if (txn.type === 'transfer') {
-        checkingCleared = roundMoney(checkingCleared - txn.amount);
-      } else if (txn.type === 'split') {
-        if (isChecking) checkingCleared = roundMoney(checkingCleared - txn.amount);
-        else ccCleared = roundMoney(ccCleared + txn.amount);
-      }
-    });
-
-    clearedBalanceEl.textContent = checkingCleared.toFixed(2);
-    clearedCcBalanceEl.textContent = ccCleared.toFixed(2);
-
-    const actualBank = roundMoney(parseFloat(actualBankInput.value) || 0);
-    const bankDiff = roundMoney(Math.abs(checkingCleared - actualBank));
-    if (bankDiff < RECONCILE_TOLERANCE) {
-      reconStatusEl.textContent = 'MATCHED';
-      reconStatusEl.className = 'match-status status-match';
-    } else {
-      reconStatusEl.textContent = `DIFF: $${bankDiff.toFixed(2)}`;
-      reconStatusEl.className = 'match-status status-mismatch';
+    const accounts = orderedAccountEntries();
+    if (!accounts.length) {
+      container.innerHTML = '<div class="empty-state">No accounts yet. Use "＋ Accounts" above to add your checking, savings and card accounts.</div>';
+      return;
     }
 
-    const actualCc = roundMoney(parseFloat(actualCcInput.value) || 0);
-    const ccDiff = roundMoney(Math.abs(ccCleared - actualCc));
-    if (ccDiff < RECONCILE_TOLERANCE) {
-      reconCcStatusEl.textContent = 'MATCHED';
-      reconCcStatusEl.className = 'match-status status-match';
-    } else {
-      reconCcStatusEl.textContent = `DIFF: $${ccDiff.toFixed(2)}`;
-      reconCcStatusEl.className = 'match-status status-mismatch';
-    }
+    container.innerHTML = accounts.map(([id, acct]) => {
+      const clearedAmt = cleared[id] || 0;
+      const diff = roundMoney(Math.abs(clearedAmt - (acct.expectedBalance || 0)));
+      const matched = diff < RECONCILE_TOLERANCE;
+      const statusHtml = matched
+        ? '<div class="match-status status-match">MATCHED</div>'
+        : `<div class="match-status status-mismatch">DIFF: $${diff.toFixed(2)}</div>`;
+      // A card's "cleared" figure is what you owe, not money you hold.
+      const clearedLabel = acct.kind === 'credit' ? 'Cleared Charges' : 'Cleared Ledger';
+      return `
+        <div class="recon-card recon-card-${acct.kind}">
+          <div class="recon-card-label">${escapeHtml(acct.name)}<span class="recon-card-kind">${ACCOUNT_KINDS[acct.kind]}</span></div>
+          <div class="recon-card-body">
+            <div class="recon-inputs">
+              <label for="recon-actual-${id}">Actual Balance $</label>
+              <input type="number" id="recon-actual-${id}" step="0.01" value="${(acct.expectedBalance || 0).toFixed(2)}"
+                     onchange="setAccountActualBalance('${id}', this.value)">
+            </div>
+            <div class="recon-cleared">${clearedLabel}: $<span>${clearedAmt.toFixed(2)}</span></div>
+            ${statusHtml}
+          </div>
+          <div class="recon-clear-section">
+            <div class="recon-clear-title">Needs Clearing</div>
+            <div id="uncleared-list-${id}"></div>
+          </div>
+          <div class="recon-clear-section">
+            <div class="recon-cleared-toggle" id="cleared-toggle-${id}" role="button" tabindex="0"
+                 onclick="toggleClearedSection('${id}')"
+                 onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleClearedSection('${id}');}">
+              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+              Recently Cleared
+            </div>
+            <div id="cleared-list-${id}" class="recon-cleared-list" style="display:none;"></div>
+          </div>
+        </div>`;
+    }).join('');
 
     renderReconLists();
   }
+
+  window.setAccountActualBalance = function(id, value) {
+    if (!state.accounts[id]) return;
+    state.accounts[id].expectedBalance = roundMoney(parseFloat(value) || 0);
+    saveState();
+    renderRecon();
+    renderReports();
+  };
 
   // ── EXPORT REMINDER ──
   let _exportReminderDismissed = false;
@@ -3379,8 +3693,6 @@
     if (!confirm('Restore the data from before the import?\n\nThe imported data will be replaced by what was in the app beforehand.')) return;
     state = snap.state;
     normalizeState(state);
-    actualBankInput.value = (state.expectedBankBalance || 0).toFixed(2);
-    actualCcInput.value = (state.expectedCcBalance || 0).toFixed(2);
     clearPreImportSnapshot();
     saveState();
     render();
@@ -3484,6 +3796,7 @@
         `}).join('');
     }
 
+    renderAccountDropdowns();
     renderLedger();
     renderDropdown();
     renderTransferDropdowns();
@@ -3569,7 +3882,7 @@
     let txns = state.ledger.filter(txn => {
       if (filterMonth && getMonthKey(txn.dateISO) !== filterMonth) return false;
       if (filterType && txn.type !== filterType) return false;
-      if (filterAccount && (txn.account || 'checking') !== filterAccount) return false;
+      if (filterAccount && txn.accountId !== filterAccount) return false;
       if (filterEnvelope) {
         const matchesSplit = txn.type === 'split' && (txn.splits || []).some(s => s.categoryId === filterEnvelope);
         if (txn.categoryId !== filterEnvelope && txn.toEnvelopeId !== filterEnvelope && !matchesSplit) return false;
@@ -3605,7 +3918,7 @@
     let running = 0;
     allSorted.forEach(t => {
       if (t.type === 'income') running = roundMoney(running + t.amount);
-      else if ((t.type === 'expense' || t.type === 'split') && t.account !== 'cc') running = roundMoney(running - t.amount);
+      else if ((t.type === 'expense' || t.type === 'split') && isSpendableAccount(t.accountId)) running = roundMoney(running - t.amount);
       else if (t.type === 'cc-payment') running = roundMoney(running - t.amount);
       else if (t.type === 'transfer') running = roundMoney(running - t.amount);
       runningMap[t.id] = running;
@@ -3643,7 +3956,7 @@
       }
 
       const runBal = runningMap[txn.id] !== undefined ? runningMap[txn.id] : null;
-      const accountBadge = txn.account === 'cc'
+      const accountBadge = accountKind(txn.accountId) === 'credit'
         ? '<span class="account-badge">CC</span>'
         : '';
 
@@ -3653,8 +3966,9 @@
       const incomeOption = txn.type === 'income' ? 'selected' : '';
       const expenseOption = txn.type === 'expense' ? 'selected' : '';
       const fundingOption = txn.type === 'funding' ? 'selected' : '';
-      const chkSelected = (txn.account || 'checking') === 'checking' ? 'selected' : '';
-      const ccSelected = (txn.account || 'checking') === 'cc' ? 'selected' : '';
+      const editAccountOptions = orderedAccountEntries()
+        .map(([aid, a]) => `<option value="${aid}"${txn.accountId === aid ? ' selected' : ''}>${escapeHtml(a.name)}</option>`)
+        .join('');
       let catSelect;
       if (txn.type === 'income') {
         catSelect = '<select id="edit-cat-' + txn.id + '" disabled><option>Left to Assign</option></select>';
@@ -3713,10 +4027,7 @@
                 </div>
                 <div class="txn-field">
                   <label class="txn-label" for="edit-account-${txn.id}">Account</label>
-                  <select id="edit-account-${txn.id}" ${txn.type==='income'?'disabled':''}>
-                    <option value="checking" ${chkSelected}>Checking</option>
-                    <option value="cc" ${ccSelected}>Credit Card</option>
-                  </select>
+                  <select id="edit-account-${txn.id}">${editAccountOptions}</select>
                 </div>
                 <div class="txn-field">
                   <label class="txn-label" for="edit-amount-${txn.id}">Amount</label>
@@ -3866,7 +4177,7 @@
     document.getElementById('recur-name').value = txn.payee;
     document.getElementById('recur-type').value = txn.type;
     document.getElementById('recur-amount').value = txn.amount;
-    document.getElementById('recur-account').value = txn.account === 'cc' ? 'cc' : 'checking';
+    fillAccountSelect(document.getElementById('recur-account'), { selected: txn.accountId });
     syncRecurAccountField();
     renderRecurEnvelopeDropdown();
     document.getElementById('recur-envelope').value = (txn.categoryId && state.envelopes[txn.categoryId]) ? txn.categoryId : '';
@@ -4024,7 +4335,7 @@
     const dateISO = document.getElementById('edit-date-' + id).value;
     const payee = document.getElementById('edit-payee-' + id).value.trim();
     const type = document.getElementById('edit-type-' + id).value;
-    const account = document.getElementById('edit-account-' + id).value;
+    const accountId = document.getElementById('edit-account-' + id).value;
     const catEl = document.getElementById('edit-cat-' + id);
     const categoryId = (type === 'income') ? 'unallocated' : (type === 'cc-payment' || type === 'cc-cashback') ? 'none' : (catEl ? catEl.value : txn.categoryId);
 
@@ -4112,7 +4423,7 @@
       dateISO,
       payee,
       type,
-      account,
+      accountId,
       amount,
       categoryId,
       note: note || undefined,
@@ -4215,7 +4526,7 @@
     const sorted = [...state.recurring].sort((a, b) => (a.nextDate || '').localeCompare(b.nextDate || ''));
     listEl.innerHTML = sorted.map(r => {
       const envName = r.envelopeId && state.envelopes[r.envelopeId] ? escapeHtml(state.envelopes[r.envelopeId].name) : '';
-      const acctLabel = r.account === 'cc' ? ' · Credit Card' : '';
+      const acctLabel = r.accountId && state.accounts[r.accountId] ? ' · ' + escapeHtml(accountName(r.accountId)) : '';
       const meta = FREQUENCY_LABELS[r.frequency] + ' · Next: ' + formatDate(r.nextDate) + acctLabel + (envName ? ' · ' + envName : '');
       const amountColor = r.type === 'income' ? 'var(--success)' : 'var(--danger)';
       const sign = r.type === 'income' ? '+' : '-';
@@ -4244,10 +4555,9 @@
               <option value="income" ${r.type === 'income' ? 'selected' : ''}>Income</option>
             </select>
             <input type="number" id="recur-edit-amount-${r.id}" value="${r.amount}" placeholder="Amount $" step="0.01" min="0.01" aria-label="Amount">
-            <select id="recur-edit-account-${r.id}" aria-label="Account" ${r.type === 'income' ? 'disabled' : ''}>
-              <option value="checking" ${r.account !== 'cc' ? 'selected' : ''}>Checking</option>
-              <option value="cc" ${r.account === 'cc' ? 'selected' : ''}>Credit Card</option>
-            </select>
+            <select id="recur-edit-account-${r.id}" aria-label="Account">${
+              orderedAccountEntries().map(([aid, a]) => `<option value="${aid}"${r.accountId === aid ? ' selected' : ''}>${escapeHtml(a.name)}</option>`).join('')
+            }</select>
             <select id="recur-edit-envelope-${r.id}" aria-label="Envelope">
               <option value="">None</option>
               ${envOptions}
@@ -4297,7 +4607,7 @@
     item.type = typeEl.value;
     item.amount = roundMoney(parseFloat(amountEl.value) || 0);
     item.envelopeId = envelopeEl.value;
-    item.account = item.type === 'income' ? 'checking' : accountEl.value;
+    item.accountId = accountEl.value;
     item.frequency = frequencyEl.value;
     item.nextDate = dateEl.value;
     saveState();
@@ -4329,7 +4639,7 @@
     document.getElementById('txn-date').value = isISODate(item.nextDate) ? item.nextDate : todayISO();
     document.getElementById('txn-amount').value = item.amount;
     document.getElementById('txn-payee').value = item.name;
-    document.getElementById('txn-account').value = item.account === 'cc' ? 'cc' : 'checking';
+    if (item.accountId && state.accounts[item.accountId]) document.getElementById('txn-account').value = item.accountId;
     if (item.type !== 'income' && item.envelopeId && state.envelopes[item.envelopeId]) {
       document.getElementById('txn-envelope').value = item.envelopeId;
     }
@@ -4529,7 +4839,7 @@
     state.ledger.forEach(txn => {
       if (txn.type !== 'expense' && txn.type !== 'split') return;
       if (monthKey && getMonthKey(txn.dateISO) !== monthKey) return;
-      if (txn.account === 'cc') cc = roundMoney(cc + txn.amount);
+      if (accountKind(txn.accountId) === 'credit') cc = roundMoney(cc + txn.amount);
       else checking = roundMoney(checking + txn.amount);
     });
     const total = roundMoney(checking + cc);
@@ -4556,7 +4866,7 @@
   }
 
   // ── RECONCILE: CLEAR / UNCLEAR TRANSACTION LISTS ──
-  const _clearedSectionOpen = { checking: false, cc: false };
+  const _clearedSectionOpen = {};
 
   function reconTxnRowHtml(t, checked) {
     const isCredit = t.type === 'income' || t.type === 'cc-cashback';
@@ -4572,39 +4882,43 @@
   }
 
   function renderReconLists() {
-    const relevant = state.ledger.filter(function(t) { return t.type !== 'funding' && t.type !== 'envelope-transfer'; });
-    ['checking', 'cc'].forEach(function(acct) {
-      const txns = relevant.filter(function(t) { return (t.account === 'cc' ? 'cc' : 'checking') === acct; });
-      const uncleared = txns.filter(function(t) { return !t.cleared; })
-        .sort(function(a,b) { return (b.dateISO||b.date).localeCompare(a.dateISO||a.date); });
-      const cleared = txns.filter(function(t) { return t.cleared; })
-        .sort(function(a,b) { return (b.dateISO||b.date).localeCompare(a.dateISO||a.date); })
-        .slice(0, RECENTLY_CLEARED_LIMIT);
+    const relevant = state.ledger.filter(t => t.type !== 'funding' && t.type !== 'envelope-transfer');
+    orderedAccountEntries().forEach(([id]) => {
+      // A transaction shows under an account if it either comes out of it or
+      // lands in it, so a card payment appears on both the paying account and
+      // the card being paid — which is where you would look for it.
+      const txns = relevant.filter(t => t.accountId === id || t.toAccountId === id);
+      const byDateDesc = (a, b) => (b.dateISO || b.date).localeCompare(a.dateISO || a.date);
+      const uncleared = txns.filter(t => !t.cleared).sort(byDateDesc);
+      const cleared = txns.filter(t => t.cleared).sort(byDateDesc).slice(0, RECENTLY_CLEARED_LIMIT);
 
-      const unclearedEl = document.getElementById('uncleared-list-' + acct);
+      const unclearedEl = document.getElementById('uncleared-list-' + id);
+      const toggleBtn = document.getElementById('cleared-toggle-' + id);
+      const clearedListEl = document.getElementById('cleared-list-' + id);
+      if (!unclearedEl || !toggleBtn || !clearedListEl) return;
+
       unclearedEl.innerHTML = uncleared.length
-        ? uncleared.map(function(t) { return reconTxnRowHtml(t, false); }).join('')
+        ? uncleared.map(t => reconTxnRowHtml(t, false)).join('')
         : '<div class="recon-empty-msg"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px; margin-right:4px;"><circle cx="12" cy="12" r="9"/><path d="M8.5 12.5l2.5 2.5 5-5"/></svg>All cleared!</div>';
 
-      const toggleBtn = document.getElementById('cleared-toggle-' + acct);
-      const clearedListEl = document.getElementById('cleared-list-' + acct);
       toggleBtn.lastChild.textContent = ' Recently Cleared (' + cleared.length + ')';
       clearedListEl.innerHTML = cleared.length
-        ? cleared.map(function(t) { return reconTxnRowHtml(t, true); }).join('')
+        ? cleared.map(t => reconTxnRowHtml(t, true)).join('')
         : '<div class="recon-empty-msg">No cleared transactions yet.</div>';
 
       // Preserve open/closed state across re-renders
-      clearedListEl.style.display = _clearedSectionOpen[acct] ? '' : 'none';
-      toggleBtn.classList.toggle('open', _clearedSectionOpen[acct]);
+      clearedListEl.style.display = _clearedSectionOpen[id] ? '' : 'none';
+      toggleBtn.classList.toggle('open', !!_clearedSectionOpen[id]);
     });
   }
 
-  window.toggleClearedSection = function(acct) {
-    _clearedSectionOpen[acct] = !_clearedSectionOpen[acct];
-    const listEl = document.getElementById('cleared-list-' + acct);
-    const toggleBtn = document.getElementById('cleared-toggle-' + acct);
-    listEl.style.display = _clearedSectionOpen[acct] ? '' : 'none';
-    toggleBtn.classList.toggle('open', _clearedSectionOpen[acct]);
+  window.toggleClearedSection = function(id) {
+    _clearedSectionOpen[id] = !_clearedSectionOpen[id];
+    const listEl = document.getElementById('cleared-list-' + id);
+    const toggleBtn = document.getElementById('cleared-toggle-' + id);
+    if (!listEl || !toggleBtn) return;
+    listEl.style.display = _clearedSectionOpen[id] ? '' : 'none';
+    toggleBtn.classList.toggle('open', _clearedSectionOpen[id]);
   };
 
   // ── CASH FLOW FORECAST ──
@@ -4640,20 +4954,10 @@
     return null;
   }
 
-  // Net effect on checking of everything recorded but NOT yet cleared the
-  // bank. Mirrors renderRecon()'s cleared-side arithmetic exactly, just with
-  // the cleared flag inverted.
-  function getUnclearedCheckingDelta() {
-    let delta = 0;
-    state.ledger.forEach(t => {
-      if (t.cleared || t.type === 'funding' || t.type === 'envelope-transfer') return;
-      const isChecking = t.account !== 'cc';
-      if (t.type === 'income') delta = roundMoney(delta + t.amount);
-      else if ((t.type === 'expense' || t.type === 'split') && isChecking) delta = roundMoney(delta - t.amount);
-      else if (t.type === 'cc-payment') delta = roundMoney(delta - t.amount);
-      else if (t.type === 'transfer') delta = roundMoney(delta - t.amount);
-    });
-    return delta;
+  // True once at least one checking account has a balance entered, which is
+  // what the forecast needs before its numbers mean anything.
+  function hasReconciledCheckingBalance() {
+    return orderedAccountEntries().some(([id, a]) => isSpendableAccount(id) && a.expectedBalance);
   }
 
   // Whole days between two ISO dates (UTC, so DST can't make this 0.96 days).
@@ -4676,27 +4980,32 @@
     const name = (item.name || '').trim().toLowerCase();
     if (!name) return false;
     const windowDays = FREQUENCY_MATCH_WINDOW_DAYS[item.frequency] ?? 7;
-    const itemAccount = item.account === 'cc' ? 'cc' : 'checking';
+    const itemAccount = item.accountId;
     return state.ledger.some(t => {
       if (t.type !== item.type) return false;
-      if ((t.account === 'cc' ? 'cc' : 'checking') !== itemAccount) return false;
+      if (t.accountId !== itemAccount) return false;
       if ((t.payee || '').trim().toLowerCase() !== name) return false;
       if (!isISODate(t.dateISO)) return false;
       return Math.abs(daysBetweenISO(t.dateISO, occurrenceISO)) <= windowDays;
     });
   }
 
-  // The forecast's starting point: the real money on hand right now.
+  // The forecast's starting point: the real spending money on hand right now,
+  // across every checking account combined. Savings is excluded on purpose —
+  // it is money set aside rather than money available for this month's bills —
+  // and card accounts are debts, not cash.
   //
-  // This deliberately does NOT sum the ledger. The Ledger tab's "Chk Bal"
-  // column is a running total that starts from zero at your first recorded
-  // transaction, so it is only a relative figure — unless your ledger goes
-  // all the way back to an opening deposit it is not what is actually in the
-  // bank, and projecting from it produced false "you'll overdraft" warnings.
-  // The authoritative number is the balance entered on the Reconcile tab,
-  // adjusted for transactions recorded since that haven't cleared yet.
+  // Each account contributes its reconciled balance plus anything recorded
+  // against it that has not cleared yet. This deliberately does NOT sum the
+  // ledger: the Ledger tab's "Chk Bal" column starts from zero at your first
+  // recorded transaction, so unless that goes back to an opening deposit it is
+  // not what is in the bank, and projecting from it produced false
+  // "you'll overdraft" warnings.
   function getForecastStartBalance() {
-    return roundMoney((state.expectedBankBalance || 0) + getUnclearedCheckingDelta());
+    const uncleared = computeAccountTally(t => !t.cleared);
+    return roundMoney(orderedAccountEntries()
+      .filter(([id]) => isSpendableAccount(id))
+      .reduce((sum, [id, acct]) => sum + (acct.expectedBalance || 0) + (uncleared[id] || 0), 0));
   }
 
   // Expands every recurring item forward from today across the horizon,
@@ -4723,7 +5032,7 @@
       while (occurrence <= endDate) {
         events.push({
           date: occurrence, name: r.name, type: r.type, amount: r.amount,
-          account: r.account || 'checking', posted: isOccurrencePosted(r, occurrence)
+          account: r.accountId, posted: isOccurrencePosted(r, occurrence)
         });
         const next = addRecurInterval(occurrence, r.frequency);
         if (!next || next <= occurrence) return;
@@ -4744,7 +5053,7 @@
       // but leaves the projected balance untouched. An occurrence already
       // entered in the ledger is likewise left out of the arithmetic: it is
       // part of the starting balance already.
-      const onCard = evt.type === 'expense' && evt.account === 'cc';
+      const onCard = evt.type === 'expense' && accountKind(evt.account) === 'credit';
       if (evt.posted) {
         // already counted in startBalance — no effect either way
       } else if (onCard) {
@@ -4779,10 +5088,10 @@
 
     // Be explicit about where the projection starts, so the numbers can be
     // sanity-checked instead of taken on faith.
-    const startLine = `Starting from $${forecast.startBalance.toFixed(2)} — your Reconcile balance, adjusted for uncleared transactions.`;
-    const needsBalance = !state.expectedBankBalance;
+    const startLine = `Starting from $${forecast.startBalance.toFixed(2)} — your checking balances from Reconcile, adjusted for uncleared transactions.`;
+    const needsBalance = !hasReconciledCheckingBalance();
     const balanceHint = needsBalance
-      ? '<div class="forecast-note forecast-note-warn">Set your actual balance on the Reconcile tab — without it this projects from $0 and the amounts below will be off.</div>'
+      ? '<div class="forecast-note forecast-note-warn">Set your account balances on the Reconcile tab — without them this projects from $0 and the amounts below will be off.</div>'
       : '';
     const cardNote = forecast.cardCharges > 0
       ? `<div class="forecast-note">Plus $${forecast.cardCharges.toFixed(2)} in card charges due. These don't reduce checking until you pay the card, so they aren't in the balance above.</div>`
@@ -4899,7 +5208,7 @@
             txn.date,
             csvField(txn.payee),
             'split',
-            txn.account || 'checking',
+            accountName(txn.accountId),
             csvField(cat),
             (-s.amount).toFixed(2),
             txn.cleared ? 'yes' : 'no',
@@ -4921,7 +5230,7 @@
         txn.date,
         csvField(txn.payee),
         txn.type,
-        txn.account || 'checking',
+        accountName(txn.accountId),
         csvField(cat),
         amt.toFixed(2),
         txn.cleared ? 'yes' : 'no',
