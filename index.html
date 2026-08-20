@@ -503,6 +503,9 @@
     white-space: nowrap;
   }
   .env-menu-btn:hover { background: var(--border); }
+  .env-menu-move { flex: 0 0 auto; font-weight: 700; padding: 6px 12px; }
+  .env-menu-btn:disabled { opacity: 0.35; cursor: default; }
+  .env-menu-btn:disabled:hover { background: transparent; }
   .env-menu-danger { color: var(--danger); border-color: var(--danger); }
   .env-menu-danger:hover { background: var(--danger); color: #fff; }
   
@@ -540,6 +543,8 @@
   .recurring-meta { font-size: var(--text-2xs); color: var(--text-muted); }
   .recurring-actions { display: flex; gap: 8px; align-items: center; }
   .recurring-amount { font-size: var(--text-md); min-width: 65px; text-align: right; }
+  .recur-post-btn { background: var(--success); color: #fff; font-size: var(--text-2xs); padding: 6px 12px; white-space: nowrap; }
+  .recur-post-btn:hover { background: var(--success-hover); }
   .recurring-edit-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; width: 100%; margin-top: 6px; }
   .recurring-edit-row input, .recurring-edit-row select { flex: 1; padding: 6px 8px; font-size: var(--text-sm); min-width: 110px; }
   .recurring-edit-row .confirm-btn { background: var(--success); font-size: var(--text-xs); padding: 6px 10px; white-space: nowrap; flex: 0 0 auto; }
@@ -1934,8 +1939,13 @@
   // correctly. Used both for state loaded from localStorage at boot and for
   // state loaded via Import, so imported backups can't skip normalization.
   function normalizeState(s) {
-    Object.values(s.envelopes).forEach(env => {
+    // Envelopes used to render in whatever order the object happened to
+    // enumerate, which meant creation order forever. An explicit order field
+    // makes the sequence the user's to decide; anything without one keeps its
+    // current position by inheriting its index.
+    Object.values(s.envelopes).forEach((env, index) => {
       if (typeof env.goal === 'undefined') env.goal = 0;
+      if (typeof env.order !== 'number') env.order = index;
     });
     s.ledger.forEach(txn => {
       if (typeof txn.id === 'undefined') txn.id = Date.now().toString() + Math.random();
@@ -2376,7 +2386,10 @@
     const envName = nameInput.value.trim();
     if (!envName) { nameInput.value = ''; nameInput.reportValidity(); return; }
 
-    state.envelopes[id] = { name: envName, balance: 0, goal: goalVal };
+    // Append, don't prepend: without an explicit order a new envelope would
+    // fall back to 0 and jump to the top of the list.
+    const nextOrder = Object.values(state.envelopes).reduce((max, e) => Math.max(max, e.order || 0), -1) + 1;
+    state.envelopes[id] = { name: envName, balance: 0, goal: goalVal, order: nextOrder };
     nameInput.value = ''; goalInput.value = '';
 
     saveState();
@@ -2449,6 +2462,9 @@
     const open = txnFormWrapper.style.display !== 'none';
     txnFormWrapper.style.display = open ? 'none' : 'block';
     toggleFormBtn.textContent = open ? '+ Add Transaction' : '✕ Cancel';
+    // Closing the form abandons any recurring post it was started for, so the
+    // schedule isn't advanced by the next unrelated transaction.
+    if (open) _postingRecurringId = null;
     syncFilterBar();
     syncPanelFormExpanded('panel-ledger');
   });
@@ -2473,7 +2489,7 @@
   function renderTransferDropdowns() {
     const fromCurrent = transferFromSelect.value;
     const toCurrent = transferToSelect.value;
-    const opts = Object.entries(state.envelopes)
+    const opts = orderedEnvelopeEntries()
       .map(([id, env]) => `<option value="${id}">${escapeHtml(env.name)} ($${env.balance.toFixed(2)})</option>`)
       .join('');
     transferFromSelect.innerHTML = '<option value="" disabled selected>Select Envelope</option>' + opts;
@@ -2510,12 +2526,34 @@
 
   function renderRecurEnvelopeDropdown() {
     const current = recurEnvelopeSelect.value;
-    const opts = Object.entries(state.envelopes)
+    const opts = orderedEnvelopeEntries()
       .map(([id, env]) => `<option value="${id}">${escapeHtml(env.name)}</option>`)
       .join('');
     recurEnvelopeSelect.innerHTML = '<option value="">None</option>' + opts;
     if (state.envelopes[current]) recurEnvelopeSelect.value = current;
   }
+
+  // Every envelope listing goes through here, so the user's chosen order is
+  // reflected consistently in the list, all the dropdowns and the reports —
+  // not just wherever it was remembered to sort.
+  function orderedEnvelopeEntries() {
+    return Object.entries(state.envelopes).sort((a, b) => (a[1].order || 0) - (b[1].order || 0));
+  }
+
+  // Swaps an envelope with its neighbour in the sorted sequence. Order values
+  // are rewritten densely from the sorted list first, so gaps or duplicates
+  // left by older data can't make a move silently do nothing.
+  window.moveEnvelope = function(id, direction) {
+    const entries = orderedEnvelopeEntries();
+    entries.forEach(([, env], i) => { env.order = i; });
+    const index = entries.findIndex(([envId]) => envId === id);
+    const target = index + direction;
+    if (index < 0 || target < 0 || target >= entries.length) return;
+    entries[index][1].order = target;
+    entries[target][1].order = index;
+    saveState();
+    render();
+  };
 
   // Names already used on other transactions, most-recently-used first, for
   // the payee autocomplete dropdown — helps keep spellings and
@@ -2833,7 +2871,7 @@
 
   function splitEnvelopeOptionsHtml(selectedId) {
     return '<option value="" disabled' + (selectedId ? '' : ' selected') + '>Select Envelope</option>' +
-      Object.entries(state.envelopes).map(([id, env]) =>
+      orderedEnvelopeEntries().map(([id, env]) =>
         `<option value="${id}"${selectedId === id ? ' selected' : ''}>${escapeHtml(env.name)}</option>`
       ).join('');
   }
@@ -3005,7 +3043,11 @@
         txnAccountSelect.disabled = false;
         renderDropdown();
     }
-    
+
+    // Only now that the entry is real does the recurring item's due date move
+    // on to the next occurrence.
+    advancePostedRecurring();
+
     saveState();
     render();
   });
@@ -3368,12 +3410,14 @@
       pill.style.background = 'var(--primary)';
     }
     
-    const envelopeEntries = Object.entries(state.envelopes);
+    const envelopeEntries = orderedEnvelopeEntries();
     
     if (envelopeEntries.length === 0) {
         envelopeListEl.innerHTML = '<div class="empty-state">No envelopes yet. Add one above to get started!</div>';
     } else {
-        envelopeListEl.innerHTML = envelopeEntries.map(([id, env]) => {
+        envelopeListEl.innerHTML = envelopeEntries.map(([id, env], envIndex) => {
+          const isFirst = envIndex === 0;
+          const isLast = envIndex === envelopeEntries.length - 1;
           const isNegative = env.balance < 0;
           const balanceStyle = `font-weight: ${isNegative ? 'bold' : 'normal'}; color: ${isNegative ? 'var(--danger)' : 'inherit'}`;
           
@@ -3418,6 +3462,8 @@
             <div class="env-menu-row" id="env-menu-${id}" style="display:none;">
               ${env.goal > 0 ? `<button class="env-menu-btn" onclick="showFundInput('${id}')">Custom Fund</button>` : ''}
               <button class="env-menu-btn" onclick="openEnvEdit('${id}')">Edit</button>
+              <button class="env-menu-btn env-menu-move" onclick="moveEnvelope('${id}', -1)" title="Move up" aria-label="Move ${escapeHtml(env.name)} up"${isFirst ? ' disabled' : ''}>↑</button>
+              <button class="env-menu-btn env-menu-move" onclick="moveEnvelope('${id}', 1)" title="Move down" aria-label="Move ${escapeHtml(env.name)} down"${isLast ? ' disabled' : ''}>↓</button>
               <button class="env-menu-btn env-menu-danger" onclick="deleteEnvelope('${id}')">Delete</button>
             </div>
             <div class="fund-input-row" id="fund-row-${id}" style="display:none;">
@@ -3511,7 +3557,7 @@
     const filterEnvEl = document.getElementById('filter-envelope');
     const currentEnvFilter = filterEnvEl.value;
     filterEnvEl.innerHTML = '<option value="">All Envelopes</option>' +
-      Object.entries(state.envelopes).map(([id, env]) =>
+      orderedEnvelopeEntries().map(([id, env]) =>
         `<option value="${id}">${escapeHtml(env.name)}</option>`
       ).join('');
     if (currentEnvFilter) filterEnvEl.value = currentEnvFilter;
@@ -3598,7 +3644,7 @@
         ? '<span class="account-badge">CC</span>'
         : '';
 
-      const envOptions = Object.entries(state.envelopes)
+      const envOptions = orderedEnvelopeEntries()
         .map(([eid, env]) => `<option value="${eid}"${txn.categoryId === eid ? ' selected' : ''}>${escapeHtml(env.name)}</option>`)
         .join('');
       const incomeOption = txn.type === 'income' ? 'selected' : '';
@@ -3613,6 +3659,7 @@
         catSelect = '<select id="edit-cat-' + txn.id + '">' + envOptions + '</select>';
       }
 
+      const isSplit = txn.type === 'split';
       const hasDetail = !!(txn.note || txn.hasReceipt || txn.type === 'split');
       const noteIconSvg = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h13a3 3 0 0 1 3 3v13H7a3 3 0 0 1-3-3V4z"/><line x1="9" y1="9" x2="15" y2="9"/><line x1="9" y1="13" x2="15" y2="13"/></svg>`;
       const clipIconSvg = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a5.5 5.5 0 0 1-7.78-7.78l9.19-9.19a3.5 3.5 0 0 1 4.95 4.95l-9.2 9.19a1.5 1.5 0 0 1-2.12-2.12l8.49-8.48"/></svg>`;
@@ -3636,7 +3683,7 @@
           <td class="col-amount">${amountHtml}</td>
           <td class="${runBal < 0 ? 'col-running bal-neg' : 'col-running'}">${(txn.type === 'funding' || txn.type === 'envelope-transfer') ? '—' : (runBal < 0 ? '-' : '') + '$' + Math.abs(runBal).toFixed(2)}</td>
           <td class="action-cell" style="white-space:nowrap; width:80px;">
-            ${(txn.type === 'envelope-transfer' || txn.type === 'split') ? '' : `<button class="edit-btn" onclick="openEditRow('${txn.id}')" title="Edit Transaction">✎</button>`}
+            ${txn.type === 'envelope-transfer' ? '' : `<button class="edit-btn" onclick="openEditRow('${txn.id}')" title="Edit Transaction">✎</button>`}
             <button class="delete-btn" onclick="deleteTransaction('${txn.id}')" title="Delete Transaction">✕</button>
           </td>
         </tr>
@@ -3650,14 +3697,16 @@
                 </div>
                 <div class="txn-field">
                   <label class="txn-label" for="edit-type-${txn.id}">Type</label>
-                  <select id="edit-type-${txn.id}" onchange="editTypeChange('${txn.id}')">
+                  ${isSplit
+                    ? `<select id="edit-type-${txn.id}" disabled title="Change which envelopes it splits across below; to make this a single-envelope transaction, delete and re-enter it"><option value="split" selected>Split</option></select>`
+                    : `<select id="edit-type-${txn.id}" onchange="editTypeChange('${txn.id}')">
                     <option value="expense" ${expenseOption}>Expense</option>
                     <option value="income" ${incomeOption}>Income</option>
                     <option value="funding" ${fundingOption}>Funding</option>
                     <option value="cc-payment" ${txn.type==='cc-payment'?'selected':''}>CC Payment</option>
                     <option value="cc-cashback" ${txn.type==='cc-cashback'?'selected':''}>CC Cash Back</option>
                     <option value="transfer" ${txn.type==='transfer'?'selected':''}>Transfer to Savings</option>
-                  </select>
+                  </select>`}
                 </div>
                 <div class="txn-field">
                   <label class="txn-label" for="edit-account-${txn.id}">Account</label>
@@ -3668,16 +3717,25 @@
                 </div>
                 <div class="txn-field">
                   <label class="txn-label" for="edit-amount-${txn.id}">Amount</label>
-                  <input type="number" id="edit-amount-${txn.id}" value="${txn.amount}" step="0.01" min="0.01">
+                  <input type="number" id="edit-amount-${txn.id}" value="${txn.amount}" step="0.01" min="0.01"${isSplit ? ' readonly title="Total of the split amounts below"' : ''}>
                 </div>
                 <div class="txn-field txn-field-wide">
                   <label class="txn-label" for="edit-payee-${txn.id}">Payee</label>
                   <input type="text" id="edit-payee-${txn.id}" class="payee-autocomplete-input" value="${escapeHtml(txn.payee)}" placeholder="Payee">
                 </div>
+                ${isSplit ? `
+                <div class="txn-field txn-field-wide">
+                  <label class="txn-label" id="edit-split-label-${txn.id}">Split Envelopes</label>
+                  <div id="edit-split-rows-${txn.id}" role="group" aria-labelledby="edit-split-label-${txn.id}">
+                    ${(txn.splits || []).map(s => editSplitRowHtml(txn.id, s.categoryId, s.amount)).join('')}
+                  </div>
+                  <button type="button" class="split-add-row-btn" onclick="addEditSplitRow('${txn.id}')">+ Add Envelope</button>
+                  <div id="edit-split-total-${txn.id}" class="split-total-line"></div>
+                </div>` : `
                 <div class="txn-field txn-field-wide">
                   <label class="txn-label" for="edit-cat-${txn.id}">Category</label>
                   <span id="edit-cat-wrap-${txn.id}">${catSelect}</span>
-                </div>
+                </div>`}
                 <div class="txn-field txn-field-wide">
                   <label class="txn-label" for="edit-note-${txn.id}">Note (optional)</label>
                   <textarea id="edit-note-${txn.id}" placeholder="Note (optional)">${escapeHtml(txn.note)}</textarea>
@@ -3703,6 +3761,54 @@
     }).join('');
   }
 
+  // ── Editing a split's allocations ──
+  // Splits were previously the one transaction type with no edit button, so a
+  // single wrong amount meant deleting the entry and re-entering every row.
+  function editSplitRowHtml(txnId, categoryId, amount) {
+    const opts = orderedEnvelopeEntries()
+      .map(([eid, env]) => `<option value="${eid}"${eid === categoryId ? ' selected' : ''}>${escapeHtml(env.name)}</option>`)
+      .join('');
+    return '<div class="split-row-item">'
+      + `<select class="split-row-envelope" aria-label="Split envelope">${opts}</select>`
+      + `<input type="number" class="split-row-amount" step="0.01" min="0.01" placeholder="0.00" value="${amount != null ? amount : ''}" aria-label="Split amount" oninput="updateEditSplitTotal('${txnId}')">`
+      + `<button type="button" class="split-remove-btn" onclick="removeEditSplitRow(this, '${txnId}')" title="Remove this split" aria-label="Remove this split">`
+      + '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>'
+      + '</button>'
+      + '</div>';
+  }
+
+  function getEditSplitRows(txnId) {
+    const container = document.getElementById('edit-split-rows-' + txnId);
+    if (!container) return [];
+    return [...container.querySelectorAll('.split-row-item')].map(row => ({
+      categoryId: row.querySelector('.split-row-envelope').value,
+      amount: roundMoney(parseFloat(row.querySelector('.split-row-amount').value) || 0)
+    }));
+  }
+
+  window.updateEditSplitTotal = function(txnId) {
+    const rows = getEditSplitRows(txnId);
+    const total = roundMoney(rows.reduce((sum, r) => sum + r.amount, 0));
+    const totalEl = document.getElementById('edit-split-total-' + txnId);
+    if (totalEl) totalEl.textContent = 'Total: $' + total.toFixed(2);
+    // The amount field is read-only for splits and always mirrors this total.
+    const amountEl = document.getElementById('edit-amount-' + txnId);
+    if (amountEl) amountEl.value = total ? total.toFixed(2) : '';
+  };
+
+  window.addEditSplitRow = function(txnId) {
+    const container = document.getElementById('edit-split-rows-' + txnId);
+    if (!container) return;
+    container.insertAdjacentHTML('beforeend', editSplitRowHtml(txnId, null, null));
+    updateEditSplitTotal(txnId);
+  };
+
+  window.removeEditSplitRow = function(btn, txnId) {
+    const row = btn.closest('.split-row-item');
+    if (row) row.remove();
+    updateEditSplitTotal(txnId);
+  };
+
   const _editReceiptState = {};
 
   window.openEditRow = function(id) {
@@ -3720,6 +3826,9 @@
       // scrolls the row into view without triggering anything extra.
       const amountInput = document.getElementById('edit-amount-' + id);
       if (amountInput) amountInput.focus();
+      // Splits show a running total that has to be correct before anything is
+      // typed, not just after the first edit.
+      if (document.getElementById('edit-split-rows-' + id)) updateEditSplitTotal(id);
       const txn = state.ledger.find(t => t.id === id);
       if (txn && txn.hasReceipt) {
         const previewEl = document.getElementById('edit-receipt-preview-' + id);
@@ -3893,11 +4002,11 @@
     } else if (type === 'transfer') {
       accountSel.value = 'checking';
       accountSel.disabled = true;
-      const envOptions = Object.entries(state.envelopes).map(([eid, env]) => `<option value="${eid}">${escapeHtml(env.name)}</option>`).join('');
+      const envOptions = orderedEnvelopeEntries().map(([eid, env]) => `<option value="${eid}">${escapeHtml(env.name)}</option>`).join('');
       catWrap.innerHTML = `<select id="edit-cat-${id}">${envOptions}</select>`;
     } else {
       accountSel.disabled = false;
-      const envOptions = Object.entries(state.envelopes)
+      const envOptions = orderedEnvelopeEntries()
         .map(([eid, env]) => `<option value="${eid}">${escapeHtml(env.name)}</option>`)
         .join('');
       catWrap.innerHTML = `<select id="edit-cat-${id}">${envOptions}</select>`;
@@ -3913,9 +4022,23 @@
     const payee = document.getElementById('edit-payee-' + id).value.trim();
     const type = document.getElementById('edit-type-' + id).value;
     const account = document.getElementById('edit-account-' + id).value;
-    const amount = roundMoney(parseFloat(document.getElementById('edit-amount-' + id).value));
     const catEl = document.getElementById('edit-cat-' + id);
     const categoryId = (type === 'income') ? 'unallocated' : (type === 'cc-payment' || type === 'cc-cashback') ? 'none' : (catEl ? catEl.value : txn.categoryId);
+
+    // A split's amount is the sum of its allocations rather than a field.
+    const editingSplit = type === 'split';
+    let newSplits = null;
+    let amount;
+    if (editingSplit) {
+      newSplits = getEditSplitRows(id).filter(s => s.categoryId && s.amount > 0);
+      if (newSplits.length < 2) {
+        alert('A split needs at least two envelopes with amounts. To put it all in one envelope, delete this transaction and re-enter it as a normal expense.');
+        return;
+      }
+      amount = roundMoney(newSplits.reduce((sum, s) => sum + s.amount, 0));
+    } else {
+      amount = roundMoney(parseFloat(document.getElementById('edit-amount-' + id).value));
+    }
 
     if (!dateISO || !payee || isNaN(amount) || amount <= 0) {
       document.getElementById('edit-amount-' + id).style.borderColor = 'var(--danger)';
@@ -3939,7 +4062,13 @@
     }
 
     // ── Reverse old financial impact ──
-    if (txn.type === 'expense' && state.envelopes[txn.categoryId]) {
+    if (txn.type === 'split') {
+      (txn.splits || []).forEach(s => {
+        if (state.envelopes[s.categoryId]) {
+          state.envelopes[s.categoryId].balance = roundMoney(state.envelopes[s.categoryId].balance + s.amount);
+        }
+      });
+    } else if (txn.type === 'expense' && state.envelopes[txn.categoryId]) {
       state.envelopes[txn.categoryId].balance = roundMoney(state.envelopes[txn.categoryId].balance + txn.amount);
     } else if (txn.type === 'funding' && state.envelopes[txn.categoryId]) {
       state.envelopes[txn.categoryId].balance = roundMoney(state.envelopes[txn.categoryId].balance - txn.amount);
@@ -3949,7 +4078,13 @@
     // cc-payment and income: no envelope impact to reverse
 
     // ── Apply new financial impact ──
-    if (type === 'expense' && state.envelopes[categoryId]) {
+    if (editingSplit) {
+      newSplits.forEach(s => {
+        if (state.envelopes[s.categoryId]) {
+          state.envelopes[s.categoryId].balance = roundMoney(state.envelopes[s.categoryId].balance - s.amount);
+        }
+      });
+    } else if (type === 'expense' && state.envelopes[categoryId]) {
       state.envelopes[categoryId].balance = roundMoney(state.envelopes[categoryId].balance - amount);
     } else if (type === 'funding' && state.envelopes[categoryId]) {
       state.envelopes[categoryId].balance = roundMoney(state.envelopes[categoryId].balance + amount);
@@ -3980,6 +4115,11 @@
       note: note || undefined,
       hasReceipt
     };
+    if (editingSplit) {
+      state.ledger[txnIndex].splits = newSplits;
+      // A split's category comes from its allocations, not a single field.
+      delete state.ledger[txnIndex].categoryId;
+    }
 
     if (receiptTouched) {
       if (newReceiptDataUrl) {
@@ -4076,7 +4216,7 @@
       const meta = FREQUENCY_LABELS[r.frequency] + ' · Next: ' + formatDate(r.nextDate) + acctLabel + (envName ? ' · ' + envName : '');
       const amountColor = r.type === 'income' ? 'var(--success)' : 'var(--danger)';
       const sign = r.type === 'income' ? '+' : '-';
-      const envOptions = Object.entries(state.envelopes)
+      const envOptions = orderedEnvelopeEntries()
         .map(([id, env]) => `<option value="${id}" ${r.envelopeId === id ? 'selected' : ''}>${escapeHtml(env.name)}</option>`)
         .join('');
       const freqOptions = Object.entries(FREQUENCY_LABELS)
@@ -4090,6 +4230,7 @@
           </div>
           <div class="recurring-actions">
             <span class="recurring-amount" style="color:${amountColor}">${sign}$${r.amount.toFixed(2)}</span>
+            <button class="recur-post-btn" onclick="postRecurring('${r.id}')" title="Record this as a real transaction">Post</button>
             <button class="edit-btn" onclick="openRecurEdit('${r.id}')" title="Edit Recurring Item">✎</button>
             <button class="delete-btn" onclick="deleteRecurring('${r.id}')" title="Delete Recurring Item">✕</button>
           </div>
@@ -4160,6 +4301,50 @@
     render();
   };
 
+  // Which recurring item, if any, the open Add Transaction form was started
+  // from. Its due date only rolls forward once the transaction is actually
+  // recorded, so abandoning the form leaves the schedule untouched.
+  let _postingRecurringId = null;
+
+  // Fills the Add Transaction form from a recurring definition rather than
+  // creating the entry outright. Real bills drift — a utility bill is rarely
+  // the same twice — so the amount and date want a look before they become
+  // real money, and this reuses the form's existing validation, envelope
+  // handling and receipt attachment instead of duplicating them.
+  window.postRecurring = function(id) {
+    const item = state.recurring.find(r => r.id === id);
+    if (!item) return;
+
+    closeAllEnvRows();
+    switchTab('ledger');
+
+    // Open the form if it is currently closed.
+    if (txnFormWrapper.style.display === 'none') toggleFormBtn.click();
+
+    document.getElementById('txn-type').value = item.type;
+    txnTypeSelect.dispatchEvent(new Event('change')); // rebuild envelope/account availability
+    document.getElementById('txn-date').value = isISODate(item.nextDate) ? item.nextDate : todayISO();
+    document.getElementById('txn-amount').value = item.amount;
+    document.getElementById('txn-payee').value = item.name;
+    document.getElementById('txn-account').value = item.account === 'cc' ? 'cc' : 'checking';
+    if (item.type !== 'income' && item.envelopeId && state.envelopes[item.envelopeId]) {
+      document.getElementById('txn-envelope').value = item.envelopeId;
+    }
+
+    _postingRecurringId = id;
+    document.getElementById('txn-amount').focus();
+  };
+
+  // Called once a transaction started from a recurring item has been saved.
+  function advancePostedRecurring() {
+    if (!_postingRecurringId) return;
+    const item = state.recurring.find(r => r.id === _postingRecurringId);
+    _postingRecurringId = null;
+    if (!item) return;
+    const next = addRecurInterval(item.nextDate, item.frequency);
+    if (next) item.nextDate = next;
+  }
+
   window.deleteRecurring = function(id) {
     const item = state.recurring.find(r => r.id === id);
     if (!item) return;
@@ -4174,7 +4359,7 @@
     
     const currentVal = txnEnvelopeSelect.value;
     txnEnvelopeSelect.innerHTML = '<option value="" disabled selected>Select Envelope</option>' +
-      Object.entries(state.envelopes).map(([id, env]) =>
+      orderedEnvelopeEntries().map(([id, env]) =>
         `<option value="${id}">${escapeHtml(env.name)}</option>`
       ).join('');
       
