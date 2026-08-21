@@ -87,7 +87,10 @@ the newer version.
   savings account but *increases* what a credit account owes.
 - **Reconcile** gives every account its own card, actual balance and cleared
   total, so a statement from any single card or account can be matched on its
-  own. Tick things off as they clear; the difference should reach zero.
+  own. Tick things off as they clear; the difference should reach zero. On a
+  phone you pick one account at a time from the chip row — you reconcile against
+  one statement anyway — and each chip shows ✓ when that account already
+  balances, so the overview isn't lost. Desktop shows them all side by side.
 - **The Cash Flow Forecast** has two views, and the difference matters:
   - **Cash in checking** — every checking account combined, projected forward.
     Answers *"will a payment bounce?"*. Card charges are listed but held back,
