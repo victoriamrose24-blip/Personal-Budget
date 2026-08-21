@@ -2075,7 +2075,24 @@
       });
     }
 
+    // A transaction pointing at an account that no longer exists contributes to
+    // nobody's balance: the money silently disappears from Reconcile while the
+    // row still sits in the ledger, which is worse than a visible error. Point
+    // any orphan at a real account of the right sort so it is at least counted
+    // somewhere and can be corrected.
+    const firstChecking = pickAccountIdByKind(s, 'checking')
+      || pickAccountIdByKind(s, 'savings')
+      || Object.keys(s.accounts)[0];
+    const firstCredit = pickAccountIdByKind(s, 'credit') || firstChecking;
+    s.ledger.forEach(t => {
+      if (t.accountId && !s.accounts[t.accountId]) {
+        t.accountId = t.account === 'cc' ? firstCredit : firstChecking;
+      }
+      if (t.toAccountId && !s.accounts[t.toAccountId]) delete t.toAccountId;
+    });
+
     (s.recurring || []).forEach(r => {
+      if (r.accountId && !s.accounts[r.accountId]) r.accountId = firstChecking;
       if (!r.accountId) {
         r.accountId = r.account === 'cc'
           ? (pickAccountIdByKind(s, 'credit') || DEFAULT_CREDIT_ID)
@@ -2099,6 +2116,29 @@
   }
 
   function normalizeState(s) {
+    // Drop anything structurally wrong before the field-level repairs below
+    // start reading properties off it.
+    if (!s.envelopes || typeof s.envelopes !== 'object' || Array.isArray(s.envelopes)) s.envelopes = {};
+    if (!Array.isArray(s.ledger)) s.ledger = [];
+    Object.keys(s.envelopes).forEach(id => {
+      const env = s.envelopes[id];
+      if (!env || typeof env !== 'object' || Array.isArray(env)) { delete s.envelopes[id]; return; }
+      env.balance = roundMoney(parseFloat(env.balance) || 0);
+      env.name = String(env.name == null ? '' : env.name).trim() || 'Untitled';
+    });
+    s.ledger = s.ledger.filter(t => t && typeof t === 'object' && !Array.isArray(t));
+    s.ledger.forEach(t => {
+      t.amount = roundMoney(parseFloat(t.amount) || 0);
+      // Rendering slices and lowercases these all over the place, so they have
+      // to be strings even when a hand-edited file omits them entirely.
+      t.payee = String(t.payee == null ? '' : t.payee);
+      if (typeof t.date !== 'string') t.date = '';
+      if (typeof t.type !== 'string') t.type = 'expense';
+      if (t.note != null && typeof t.note !== 'string') t.note = String(t.note);
+    });
+    if (!Array.isArray(s.recurring)) s.recurring = [];
+    s.recurring = s.recurring.filter(r => r && typeof r === 'object' && !Array.isArray(r));
+
     // Envelopes used to render in whatever order the object happened to
     // enumerate, which meant creation order forever. An explicit order field
     // makes the sequence the user's to decide; anything without one keeps its
@@ -2116,6 +2156,9 @@
       }
       // Normalize display date to MM/DD/YYYY in case it was stored in a different locale format
       if (txn.dateISO) txn.date = formatDate(txn.dateISO);
+      // Nothing usable at all: fall back to today rather than leaving a row
+      // that every date-formatting path downstream will trip over.
+      if (!txn.date) { txn.dateISO = todayISO(); txn.date = formatDate(txn.dateISO); }
     });
     if (typeof s.expectedBankBalance === 'undefined') s.expectedBankBalance = 0;
     if (typeof s.expectedCcBalance === 'undefined') s.expectedCcBalance = 0;
@@ -2130,6 +2173,11 @@
       r.nextDate = dateToISO(r.nextDate);
       if (!isISODate(r.nextDate)) r.nextDate = todayISO();
       if (!FREQUENCY_LABELS[r.frequency]) r.frequency = DEFAULT_FREQUENCY;
+      // Remember the intended day of the month so monthly/yearly items can
+      // clamp from it each time instead of drifting off a clamped date.
+      if (typeof r.anchorDay !== 'number' && isISODate(r.nextDate)) {
+        r.anchorDay = Number(r.nextDate.split('-')[2]);
+      }
       if (r.type !== 'income' && r.type !== 'expense') r.type = 'expense';
       // Income is always treated as landing in checking, mirroring the ledger.
       if (r.type === 'income' || r.account !== 'cc') r.account = 'checking';
@@ -2371,7 +2419,11 @@
     reader.onload = function(event) {
       try {
         const importedState = JSON.parse(event.target.result);
-        if (importedState && importedState.envelopes && Array.isArray(importedState.ledger)) {
+        // A truthy non-object passes a bare check and then shatters deep inside
+        // rendering, long after the point where the file could still have been
+        // rejected cleanly.
+        const isPlainObject = v => !!v && typeof v === 'object' && !Array.isArray(v);
+        if (isPlainObject(importedState) && isPlainObject(importedState.envelopes) && Array.isArray(importedState.ledger)) {
           // A file written by a newer build may use fields this version does
           // not understand; loading it would quietly drop or mangle them and
           // then save that damage back. Better to stop and say so.
@@ -2561,7 +2613,8 @@
       envelopeId: envelopeInput.value,
       accountId: accountInput.value,
       frequency: frequencyInput.value,
-      nextDate: dateInput.value
+      nextDate: dateInput.value,
+      anchorDay: isISODate(dateInput.value) ? Number(dateInput.value.split('-')[2]) : undefined
     });
 
     nameInput.value = ''; amountInput.value = ''; envelopeInput.value = ''; typeInput.value = 'expense';
@@ -4709,6 +4762,7 @@
     item.accountId = accountEl.value;
     item.frequency = frequencyEl.value;
     item.nextDate = dateEl.value;
+    if (isISODate(item.nextDate)) item.anchorDay = Number(item.nextDate.split('-')[2]);
     saveState();
     render();
   };
@@ -4753,7 +4807,7 @@
     const item = state.recurring.find(r => r.id === _postingRecurringId);
     _postingRecurringId = null;
     if (!item) return;
-    const next = addRecurInterval(item.nextDate, item.frequency);
+    const next = addRecurInterval(item.nextDate, item.frequency, item.anchorDay);
     if (next) item.nextDate = next;
   }
 
@@ -5048,7 +5102,14 @@
   // Feb 28/29) instead of overflowing into the following month.
   // Returns null for anything it can't advance, so callers can stop instead
   // of looping forever on a date that never moves.
-  function addRecurInterval(dateISO, frequency) {
+  //
+  // `anchorDay` is the day of the month the item is really due on. Clamping
+  // alone is not enough: a bill due on the 31st clamps to Feb 28 correctly, but
+  // stepping on from the 28th then yields the 28th of every following month, so
+  // the due date walks permanently backwards after its first February. Carrying
+  // the original day means each month clamps from the anchor instead —
+  // 31 Jan, 28 Feb, 31 Mar, 30 Apr — which is what a calendar does.
+  function addRecurInterval(dateISO, frequency, anchorDay) {
     if (!isISODate(dateISO)) return null;
     const [y, m, d] = dateISO.split('-').map(Number);
     if (frequency === 'weekly') return addDaysISO(dateISO, 7);
@@ -5057,7 +5118,8 @@
       const targetYear = frequency === 'yearly' ? y + 1 : (m === 12 ? y + 1 : y);
       const targetMonth = frequency === 'yearly' ? m - 1 : (m === 12 ? 0 : m);
       const daysInTargetMonth = new Date(Date.UTC(targetYear, targetMonth + 1, 0)).getUTCDate();
-      const dt = new Date(Date.UTC(targetYear, targetMonth, Math.min(d, daysInTargetMonth)));
+      const wanted = (typeof anchorDay === 'number' && anchorDay >= 1 && anchorDay <= 31) ? anchorDay : d;
+      const dt = new Date(Date.UTC(targetYear, targetMonth, Math.min(wanted, daysInTargetMonth)));
       return dt.toISOString().slice(0, 10);
     }
     return null;
@@ -5152,7 +5214,7 @@
       // step bails out if the date fails to move forward, so a frequency this
       // build doesn't understand can never spin the loop.
       while (occurrence < today) {
-        const next = addRecurInterval(occurrence, r.frequency);
+        const next = addRecurInterval(occurrence, r.frequency, r.anchorDay);
         if (!next || next <= occurrence) return;
         occurrence = next;
       }
@@ -5161,7 +5223,7 @@
           date: occurrence, name: r.name, type: r.type, amount: r.amount,
           account: r.accountId, posted: isOccurrencePosted(r, occurrence)
         });
-        const next = addRecurInterval(occurrence, r.frequency);
+        const next = addRecurInterval(occurrence, r.frequency, r.anchorDay);
         if (!next || next <= occurrence) return;
         occurrence = next;
       }
@@ -5362,7 +5424,7 @@
             txn.date,
             csvField(txn.payee),
             'split',
-            accountName(txn.accountId),
+            csvField(accountName(txn.accountId)),
             csvField(cat),
             (-s.amount).toFixed(2),
             txn.cleared ? 'yes' : 'no',
@@ -5384,7 +5446,7 @@
         txn.date,
         csvField(txn.payee),
         txn.type,
-        accountName(txn.accountId),
+        csvField(accountName(txn.accountId)),
         csvField(cat),
         amt.toFixed(2),
         txn.cleared ? 'yes' : 'no',
