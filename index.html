@@ -583,6 +583,7 @@
   .recurring-info { display: flex; flex-direction: column; gap: 4px; }
   .recurring-name { font-weight: 600; font-size: var(--text-base); }
   .recurring-meta { font-size: var(--text-2xs); color: var(--text-muted); }
+  .recur-overdue { color: var(--danger); font-weight: 700; }
   .recurring-actions { display: flex; gap: 8px; align-items: center; }
   .recurring-amount { font-size: var(--text-md); min-width: 65px; text-align: right; }
   .recur-post-btn { background: var(--success); color: #fff; font-size: var(--text-2xs); padding: 6px 12px; white-space: nowrap; }
@@ -4666,6 +4667,30 @@
   };
 
   // ── Recurring Bills & Income: list, edit, delete ──
+  // The stored nextDate is an anchor that only moves when you Post, so showing
+  // it raw leaves dates sitting in the past for anything not posted through the
+  // app — which reads as though the app has stopped keeping up.
+  //
+  // Work out the occurrence that actually matters instead: skip past any that
+  // are already recorded in the ledger (reusing the same matching the forecast
+  // does, so paying a bill by hand counts just as much as pressing Post), and
+  // stop at the first one that isn't. If that one is already behind us it is
+  // genuinely outstanding and says so, rather than quietly showing next month
+  // and hiding a missed bill.
+  function effectiveOccurrence(item) {
+    if (!isISODate(item.nextDate)) return { date: item.nextDate, overdue: false };
+    const today = todayISO();
+    let occurrence = item.nextDate;
+    let guard = 0;
+    while (guard++ < 1000) {
+      if (!isOccurrencePosted(item, occurrence)) break;
+      const next = addRecurInterval(occurrence, item.frequency, item.anchorDay);
+      if (!next || next <= occurrence) break;
+      occurrence = next;
+    }
+    return { date: occurrence, overdue: occurrence < today };
+  }
+
   function renderRecurringList() {
     const sectionEl = document.getElementById('recurring-section');
     const listEl = document.getElementById('recurring-list');
@@ -4679,7 +4704,11 @@
     listEl.innerHTML = sorted.map(r => {
       const envName = r.envelopeId && state.envelopes[r.envelopeId] ? escapeHtml(state.envelopes[r.envelopeId].name) : '';
       const acctLabel = r.accountId && state.accounts[r.accountId] ? ' · ' + escapeHtml(accountName(r.accountId)) : '';
-      const meta = FREQUENCY_LABELS[r.frequency] + ' · Next: ' + formatDate(r.nextDate) + acctLabel + (envName ? ' · ' + envName : '');
+      const occ = effectiveOccurrence(r);
+      const dueLabel = occ.overdue
+        ? '<span class="recur-overdue">Due ' + formatDate(occ.date) + '</span>'
+        : 'Next: ' + formatDate(occ.date);
+      const meta = FREQUENCY_LABELS[r.frequency] + ' · ' + dueLabel + acctLabel + (envName ? ' · ' + envName : '');
       const amountColor = r.type === 'income' ? 'var(--success)' : 'var(--danger)';
       const sign = r.type === 'income' ? '+' : '-';
       const envOptions = orderedEnvelopeEntries()
@@ -4789,7 +4818,8 @@
 
     document.getElementById('txn-type').value = item.type;
     txnTypeSelect.dispatchEvent(new Event('change')); // rebuild envelope/account availability
-    document.getElementById('txn-date').value = isISODate(item.nextDate) ? item.nextDate : todayISO();
+    const posting = effectiveOccurrence(item);
+    document.getElementById('txn-date').value = isISODate(posting.date) ? posting.date : todayISO();
     document.getElementById('txn-amount').value = item.amount;
     document.getElementById('txn-payee').value = item.name;
     if (item.accountId && state.accounts[item.accountId]) document.getElementById('txn-account').value = item.accountId;
@@ -4807,7 +4837,11 @@
     const item = state.recurring.find(r => r.id === _postingRecurringId);
     _postingRecurringId = null;
     if (!item) return;
-    const next = addRecurInterval(item.nextDate, item.frequency, item.anchorDay);
+    // Advance from the occurrence that was actually posted, so a long-stale
+    // anchor doesn't leave the item stuck one period behind for ever.
+    const posted = effectiveOccurrence(item);
+    const from = isISODate(posted.date) ? posted.date : item.nextDate;
+    const next = addRecurInterval(from, item.frequency, item.anchorDay);
     if (next) item.nextDate = next;
   }
 
